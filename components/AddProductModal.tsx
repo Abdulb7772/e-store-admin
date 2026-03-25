@@ -1,7 +1,9 @@
 'use client';
 
-import { ChangeEvent, useRef, useState } from 'react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { X, ImageIcon, Loader2 } from 'lucide-react';
+import { EditorContent, useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 import {
   type Product,
   type VariantStock,
@@ -9,6 +11,8 @@ import {
   COLOR_OPTIONS,
   SIZE_OPTIONS,
   SHOE_SIZES,
+  BRAND_OPTIONS,
+  DRESS_TYPE_OPTIONS,
   INPUT_CLASS,
   toggleItem,
 } from '@/types/product';
@@ -36,6 +40,12 @@ async function uploadToCloudinary(file: File): Promise<string> {
 
 type FormData = Omit<Product, 'id'>;
 type FormErrors = Partial<Record<keyof FormData, string>>;
+type SelectedImage = {
+  id: string;
+  previewUrl: string;
+  sourceUrl?: string;
+  file?: File;
+};
 
 const getVariantKey = (color: string, size: string) => `${color}__${size}`;
 
@@ -60,7 +70,9 @@ const totalStock = (variantStock: VariantStock[]): number =>
 
 const emptyForm = (): FormData => ({
   name: '',
+  description: '',
   brand: '',
+  dressType: '',
   category: '',
   subCategory: '',
   price: 0,
@@ -68,27 +80,116 @@ const emptyForm = (): FormData => ({
   colors: [],
   sizes: [],
   variantStock: [],
+  imageUrls: [],
+  coverImageUrl: '',
   imageUrl: '',
 });
 
 type Props = {
   onSave: (data: FormData) => void;
   onClose: () => void;
+  initialData?: FormData;
+  title?: string;
+  submitLabel?: string;
 };
 
-export default function AddProductModal({ onSave, onClose }: Props) {
+export default function AddProductModal({
+  onSave,
+  onClose,
+  initialData,
+  title = 'Add New Product',
+  submitLabel = 'Save Product',
+}: Props) {
   const [form, setForm] = useState<FormData>(emptyForm());
   const [errors, setErrors] = useState<FormErrors>({});
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
+  const [coverImageId, setCoverImageId] = useState('');
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'error'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const subCategories = CATEGORY_MAP[form.category] ?? [];
   const sizePool = form.subCategory === 'Shoes' ? SHOE_SIZES : SIZE_OPTIONS;
-
   const set = <K extends keyof FormData>(key: K, value: FormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+  const descriptionEditor = useEditor({
+    extensions: [StarterKit],
+    content: form.description || '<p></p>',
+    editorProps: {
+      attributes: {
+        class:
+          'min-h-[150px] rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-700',
+      },
+    },
+    onUpdate: ({ editor }) => {
+      set('description', editor.getHTML());
+    },
+  });
+
+  const revokeNewPreviews = (images: SelectedImage[]) => {
+    images.forEach((image) => {
+      if (image.file) URL.revokeObjectURL(image.previewUrl);
+    });
+  };
+
+  const buildExistingImages = (data: FormData): SelectedImage[] => {
+    const urls = Array.isArray(data.imageUrls) && data.imageUrls.length > 0
+      ? data.imageUrls
+      : data.imageUrl
+        ? [data.imageUrl]
+        : [];
+
+    return urls
+      .filter((url) => typeof url === 'string' && url.trim().length > 0)
+      .map((url, index) => ({
+        id: `existing-${index}-${url}`,
+        previewUrl: url,
+        sourceUrl: url,
+      }));
+  };
+
+  useEffect(() => {
+    if (initialData) {
+      const existingImages = buildExistingImages(initialData);
+      const explicitCover = initialData.coverImageUrl || initialData.imageUrl || '';
+      const initialCoverId =
+        existingImages.find((image) => image.previewUrl === explicitCover)?.id || existingImages[0]?.id || '';
+
+      setForm({
+        ...initialData,
+        description: initialData.description ?? '',
+        dressType: initialData.dressType ?? '',
+        imageUrls: existingImages.map((image) => image.previewUrl),
+        coverImageUrl: explicitCover,
+        imageUrl: explicitCover,
+      });
+      setSelectedImages((prev) => {
+        revokeNewPreviews(prev);
+        return existingImages;
+      });
+      setCoverImageId(initialCoverId);
+      setErrors({});
+      setUploadState('idle');
+      return;
+    }
+
+    setForm(emptyForm());
+    setSelectedImages((prev) => {
+      revokeNewPreviews(prev);
+      return [];
+    });
+    setCoverImageId('');
+    setErrors({});
+    setUploadState('idle');
+  }, [initialData]);
+
+  useEffect(() => {
+    if (!descriptionEditor) return;
+
+    const nextDescription = form.description?.trim() ? form.description : '<p></p>';
+    if (descriptionEditor.getHTML() !== nextDescription) {
+      descriptionEditor.commands.setContent(nextDescription, false);
+    }
+  }, [descriptionEditor, form.description]);
 
   const handleCategoryChange = (cat: string) => {
     setForm((prev) => {
@@ -98,6 +199,7 @@ export default function AddProductModal({ onSave, onClose }: Props) {
         ...prev,
         category: cat,
         subCategory: '',
+        dressType: prev.dressType,
         sizes: nextSizes,
         variantStock: nextVariantStock,
         stock: totalStock(nextVariantStock),
@@ -112,6 +214,7 @@ export default function AddProductModal({ onSave, onClose }: Props) {
       return {
         ...prev,
         subCategory,
+        dressType: prev.dressType,
         sizes: nextSizes,
         variantStock: nextVariantStock,
         stock: totalStock(nextVariantStock),
@@ -159,23 +262,42 @@ export default function AddProductModal({ onSave, onClose }: Props) {
     });
   };
 
-  const handlePickFile = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+  const handlePickFiles = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+
+    const newImages: SelectedImage[] = files.map((file, index) => ({
+      id: `new-${Date.now()}-${index}-${file.name}-${file.lastModified}`,
+      previewUrl: URL.createObjectURL(file),
+      file,
+    }));
+
+    setSelectedImages((prev) => {
+      const merged = [...prev, ...newImages];
+      if (!coverImageId && merged.length > 0) {
+        setCoverImageId(merged[0].id);
+      }
+      return merged;
+    });
     setUploadState('idle');
-    setErrors((prev) => ({ ...prev, imageUrl: undefined }));
+    setErrors((prev) => ({ ...prev, imageUrls: undefined, imageUrl: undefined, coverImageUrl: undefined }));
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleRemoveImage = () => {
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
-    setImageFile(null);
-    setImagePreview(null);
+  const handleRemoveImage = (imageId: string) => {
+    setSelectedImages((prev) => {
+      const toRemove = prev.find((image) => image.id === imageId);
+      if (toRemove?.file) {
+        URL.revokeObjectURL(toRemove.previewUrl);
+      }
+
+      const next = prev.filter((image) => image.id !== imageId);
+      if (coverImageId === imageId) {
+        setCoverImageId(next[0]?.id ?? '');
+      }
+      return next;
+    });
     setUploadState('idle');
-    set('imageUrl', '');
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const validate = (): boolean => {
@@ -191,6 +313,9 @@ export default function AddProductModal({ onSave, onClose }: Props) {
     if (form.variantStock.some((item) => item.stock < 0 || !Number.isFinite(item.stock))) {
       e.variantStock = 'Stock values must be valid non-negative numbers';
     }
+    if (selectedImages.length > 0 && !coverImageId) {
+      e.coverImageUrl = 'Select a cover image';
+    }
 
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -199,18 +324,35 @@ export default function AddProductModal({ onSave, onClose }: Props) {
   const handleSave = async () => {
     if (!validate()) return;
 
-    let finalImageUrl = form.imageUrl ?? '';
+    let finalImageUrls: string[] = [];
+    let finalCoverImageUrl = '';
 
-    if (imageFile) {
+    if (selectedImages.length > 0) {
       try {
         setUploadState('uploading');
-        finalImageUrl = await uploadToCloudinary(imageFile);
+
+        const uploadedEntries = await Promise.all(
+          selectedImages.map(async (image) => {
+            if (image.sourceUrl) return { id: image.id, url: image.sourceUrl };
+            if (!image.file) return null;
+            const uploadedUrl = await uploadToCloudinary(image.file);
+            return { id: image.id, url: uploadedUrl };
+          }),
+        );
+
+        const validEntries = uploadedEntries.filter((entry): entry is { id: string; url: string } => {
+          return Boolean(entry?.url);
+        });
+
+        finalImageUrls = validEntries.map((entry) => entry.url);
+        finalCoverImageUrl =
+          validEntries.find((entry) => entry.id === coverImageId)?.url || finalImageUrls[0] || '';
         setUploadState('idle');
       } catch {
         setUploadState('error');
         setErrors((prev) => ({
           ...prev,
-          imageUrl: 'Image upload failed. Check Cloudinary config.',
+          imageUrls: 'Image upload failed. Check Cloudinary config.',
         }));
         return;
       }
@@ -225,24 +367,26 @@ export default function AddProductModal({ onSave, onClose }: Props) {
       ...form,
       variantStock: finalVariantStock,
       stock: totalStock(finalVariantStock),
-      imageUrl: finalImageUrl,
+      imageUrls: finalImageUrls,
+      coverImageUrl: finalCoverImageUrl,
+      imageUrl: finalCoverImageUrl,
     });
   };
 
   const handleClose = () => {
-    handleRemoveImage();
+    revokeNewPreviews(selectedImages);
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 overflow-y-auto">
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-100 my-8">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="text-lg font-bold text-slate-800">Add New Product</h2>
+      <div className="w-full max-w-2xl rounded-2xl overflow-hidden bg-white shadow-2xl my-8">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-black rounded-t-2xl">
+          <h2 className="text-lg font-bold text-slate-400">{title}</h2>
           <button
             type="button"
             onClick={handleClose}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 transition-colors"
           >
             <X size={18} />
           </button>
@@ -250,43 +394,72 @@ export default function AddProductModal({ onSave, onClose }: Props) {
 
         <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-2">Product Image</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-2">Product Images</label>
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
-              onChange={handlePickFile}
+              onChange={handlePickFiles}
             />
-            {imagePreview ? (
-              <div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={imagePreview} alt="preview" className="w-full h-full object-contain" />
-                <button
-                  type="button"
-                  onClick={handleRemoveImage}
-                  className="absolute top-2 right-2 p-1 rounded-full bg-white/80 hover:bg-white border border-slate-200 text-slate-600"
-                >
-                  <X size={14} />
-                </button>
-                <p className="absolute bottom-2 left-2 text-xs text-slate-500 bg-white/80 px-2 py-0.5 rounded-full">
-                  {imageFile?.name}
-                </p>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full h-20 rounded-xl border-2 border-dashed border-slate-300 hover:border-slate-700 hover:bg-slate-100 flex items-center justify-center gap-2 transition-colors"
+            >
+              <ImageIcon size={22} className="text-slate-400" />
+              <p className="text-sm text-slate-500">
+                <span className="font-semibold text-black">Click to upload</span> one or more images
+              </p>
+            </button>
+
+            {selectedImages.length > 0 ? (
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {selectedImages.map((image) => {
+                  const isCover = coverImageId === image.id;
+
+                  return (
+                    <div
+                      key={image.id}
+                      className={`relative rounded-xl overflow-hidden border bg-slate-50 ${
+                        isCover ? 'border-black ring-1 ring-slate-700' : 'border-slate-200'
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={image.previewUrl} alt="preview" className="w-full h-28 object-cover" />
+
+                      <div className="p-2 bg-white border-t border-slate-200 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCoverImageId(image.id)}
+                          className={`text-[11px] font-semibold px-2 py-1 rounded-md border transition-colors ${
+                            isCover
+                              ? 'bg-black text-slate-300 border-black'
+                              : 'bg-white text-slate-600 border-slate-300 hover:border-slate-500'
+                          }`}
+                        >
+                          {isCover ? 'Cover Image' : 'Set as Cover'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(image.id)}
+                          className="p-1 rounded-md border border-slate-300 text-slate-600 hover:bg-slate-100"
+                          aria-label="Remove image"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full h-36 rounded-xl border-2 border-dashed border-slate-300 hover:border-slate-700 hover:bg-slate-100 flex flex-col items-center justify-center gap-2 transition-colors"
-              >
-                <ImageIcon size={28} className="text-slate-400" />
-                <p className="text-sm text-slate-500">
-                  <span className="font-semibold text-black">Click to upload</span> or drag &amp; drop
-                </p>
-                <p className="text-xs text-slate-400">PNG, JPG, WEBP up to 10 MB</p>
-              </button>
+              <p className="text-xs text-slate-400 mt-2">Add one or more product images. You can mark one as cover.</p>
             )}
-            {errors.imageUrl && <p className="text-xs text-rose-500 mt-1">{errors.imageUrl}</p>}
+            {(errors.imageUrls || errors.coverImageUrl || errors.imageUrl) && (
+              <p className="text-xs text-rose-500 mt-1">{errors.imageUrls || errors.coverImageUrl || errors.imageUrl}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -303,15 +476,26 @@ export default function AddProductModal({ onSave, onClose }: Props) {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Brand *</label>
-              <input
-                type="text"
-                placeholder="e.g. Nike"
+              <select
                 value={form.brand}
                 onChange={(e) => set('brand', e.target.value)}
                 className={INPUT_CLASS}
-              />
+              >
+                <option value="">Select brand</option>
+                {BRAND_OPTIONS.map((brand) => (
+                  <option key={brand} value={brand}>
+                    {brand}
+                  </option>
+                ))}
+              </select>
               {errors.brand && <p className="text-xs text-rose-500 mt-1">{errors.brand}</p>}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Description</label>
+            <EditorContent editor={descriptionEditor} />
+            <p className="mt-1 text-[11px] text-slate-500">Use rich text formatting for product details.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -352,6 +536,23 @@ export default function AddProductModal({ onSave, onClose }: Props) {
               </select>
               {errors.subCategory && <p className="text-xs text-rose-500 mt-1">{errors.subCategory}</p>}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Dress Type (Optional)</label>
+            <select
+              value={form.dressType ?? ''}
+              onChange={(e) => set('dressType', e.target.value)}
+              className={INPUT_CLASS}
+            >
+              <option value="">Select dress type (optional)</option>
+              {DRESS_TYPE_OPTIONS.map((dressType) => (
+                <option key={dressType} value={dressType}>
+                  {dressType}
+                </option>
+              ))}
+            </select>
+            {errors.dressType && <p className="text-xs text-rose-500 mt-1">{errors.dressType}</p>}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -492,7 +693,7 @@ export default function AddProductModal({ onSave, onClose }: Props) {
             className="inline-flex items-center gap-2 rounded-xl bg-black px-5 py-2 text-sm font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
             {uploadState === 'uploading' && <Loader2 size={14} className="animate-spin" />}
-            {uploadState === 'uploading' ? 'Uploading…' : 'Save Product'}
+            {uploadState === 'uploading' ? 'Uploading…' : submitLabel}
           </button>
         </div>
       </div>

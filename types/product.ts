@@ -7,7 +7,9 @@ export type VariantStock = {
 export type Product = {
   id: number | string;
   name: string;
+  description?: string;
   brand: string;
+  dressType?: string;
   category: string;
   subCategory: string;
   price: number;
@@ -15,6 +17,8 @@ export type Product = {
   colors: string[];
   sizes: string[];
   variantStock: VariantStock[];
+  imageUrls?: string[];
+  coverImageUrl?: string;
   imageUrl?: string;
 };
 
@@ -23,6 +27,7 @@ export const CATEGORY_MAP: Record<string, string[]> = {
   Women: ['Dresses', 'Formals', 'GYM', 'Jeans', 'Party', 'Shirts', 'Shoes'],
   Kids: ['Boys', 'Girls', 'Toddlers', 'Shoes', 'Accessories'],
   Accessories: [],
+  'Dress Style': [],
 };
 
 export const COLOR_OPTIONS = [
@@ -44,6 +49,9 @@ export const COLOR_OPTIONS = [
 
 export const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'One Size'];
 export const SHOE_SIZES   = ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'];
+
+export const BRAND_OPTIONS = ['Nike', 'Adidas', 'Puma', 'Zara', 'H&M', 'Gucci', 'Levis', 'Uniqlo'];
+export const DRESS_TYPE_OPTIONS = ['Casual', 'Formal', 'Gym', 'Party', 'Maxi', 'Midi', 'Mini', 'Bodycon', 'A-Line'];
 
 export const INITIAL_PRODUCTS: Product[] = [
   {
