@@ -27,4 +27,26 @@ export async function apiGet<T>(path: string): Promise<T> {
   return json.data;
 }
 
+export async function apiPost<T, B = unknown>(path: string, body: B): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`API request failed: ${response.status}`);
+  }
+
+  const json: ApiResponse<T> = await response.json();
+
+  if (!json.success) {
+    throw new Error(json.message || 'API request failed');
+  }
+
+  return json.data;
+}
+
 export { API_BASE };

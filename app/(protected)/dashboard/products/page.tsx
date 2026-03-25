@@ -1,18 +1,83 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, ImageIcon } from 'lucide-react';
 import AddProductModal from '@/components/AddProductModal';
 import { type Product, COLOR_OPTIONS, INITIAL_PRODUCTS } from '@/types/product';
+import { apiGet, apiPost } from '@/lib/api';
+
+type ProductPayload = Omit<Product, 'id'>;
+
+type ApiProduct = {
+  _id?: string;
+  id?: number | string;
+  name: string;
+  brand: string;
+  category: string;
+  subCategory: string;
+  price: number;
+  stock: number;
+  colors: string[];
+  sizes: string[];
+  variantStock: Product['variantStock'];
+  imageUrl?: string;
+};
+
+const normalizeProduct = (p: ApiProduct): Product => ({
+  id: p._id ?? p.id ?? String(Date.now()),
+  name: p.name,
+  brand: p.brand,
+  category: p.category,
+  subCategory: p.subCategory,
+  price: Number(p.price || 0),
+  stock: Number(p.stock || 0),
+  colors: p.colors ?? [],
+  sizes: p.sizes ?? [],
+  variantStock: p.variantStock ?? [],
+  imageUrl: p.imageUrl,
+});
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const nextId = useMemo(
-    () => (products.length ? Math.max(...products.map((p) => p.id)) + 1 : 1),
-    [products],
-  );
+  useEffect(() => {
+    let mounted = true;
+
+    const loadProducts = async () => {
+      try {
+        const data = await apiGet<ApiProduct[]>('/admin/products');
+        if (!mounted) return;
+        if (Array.isArray(data) && data.length > 0) {
+          setProducts(data.map(normalizeProduct));
+        }
+      } catch {
+        // Fallback to local sample products when backend is unavailable.
+      }
+    };
+
+    void loadProducts();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleSaveProduct = async (data: ProductPayload) => {
+    setIsSaving(true);
+    try {
+      const created = await apiPost<ApiProduct, ProductPayload>('/admin/products', data);
+      setProducts((prev) => [normalizeProduct(created), ...prev]);
+      setIsModalOpen(false);
+    } catch {
+      const fallbackId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setProducts((prev) => [{ id: fallbackId, ...data }, ...prev]);
+      setIsModalOpen(false);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100">
@@ -99,11 +164,14 @@ export default function ProductsPage() {
       {isModalOpen && (
         <AddProductModal
           onSave={(data) => {
-            setProducts((prev) => [{ id: nextId, ...data }, ...prev]);
-            setIsModalOpen(false);
+            void handleSaveProduct(data);
           }}
           onClose={() => setIsModalOpen(false)}
         />
+      )}
+
+      {isSaving && (
+        <p className="text-xs text-slate-500 mt-3">Saving product to backend...</p>
       )}
 
     </div>

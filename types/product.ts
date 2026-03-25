@@ -5,7 +5,7 @@ export type VariantStock = {
 };
 
 export type Product = {
-  id: number;
+  id: number | string;
   name: string;
   brand: string;
   category: string;

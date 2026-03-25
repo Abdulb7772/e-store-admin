@@ -4,6 +4,7 @@ import { ChangeEvent, useRef, useState } from 'react';
 import { X, ImageIcon, Loader2 } from 'lucide-react';
 import {
   type Product,
+  type VariantStock,
   CATEGORY_MAP,
   COLOR_OPTIONS,
   SIZE_OPTIONS,
@@ -12,9 +13,7 @@ import {
   toggleItem,
 } from '@/types/product';
 
-// ─── Cloudinary ───────────────────────────────────────────────────────────────
-
-const CLOUD_NAME    = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME    ?? '';
+const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? '';
 const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? '';
 
 async function uploadToCloudinary(file: File): Promise<string> {
@@ -26,52 +25,139 @@ async function uploadToCloudinary(file: File): Promise<string> {
   const body = new FormData();
   body.append('file', file);
   body.append('upload_preset', UPLOAD_PRESET);
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-    { method: 'POST', body },
-  );
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+    method: 'POST',
+    body,
+  });
   if (!res.ok) throw new Error('Cloudinary upload failed');
   const data = (await res.json()) as { secure_url: string };
   return data.secure_url;
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type FormData = Omit<Product, 'id'>;
 type FormErrors = Partial<Record<keyof FormData, string>>;
 
-const emptyForm = (): FormData => ({
-  name: '', brand: '', category: '', subCategory: '',
-  price: 0, stock: 0, colors: [], sizes: [], imageUrl: '',
-});
+const getVariantKey = (color: string, size: string) => `${color}__${size}`;
 
-// ─── Props ────────────────────────────────────────────────────────────────────
+function buildVariantStock(colors: string[], sizes: string[], current: VariantStock[]): VariantStock[] {
+  const currentMap = new Map(
+    current.map((item) => [getVariantKey(item.color, item.size), item.stock]),
+  );
+  const next: VariantStock[] = [];
+
+  colors.forEach((color) => {
+    sizes.forEach((size) => {
+      const key = getVariantKey(color, size);
+      next.push({ color, size, stock: currentMap.get(key) ?? 0 });
+    });
+  });
+
+  return next;
+}
+
+const totalStock = (variantStock: VariantStock[]): number =>
+  variantStock.reduce((sum, item) => sum + item.stock, 0);
+
+const emptyForm = (): FormData => ({
+  name: '',
+  brand: '',
+  category: '',
+  subCategory: '',
+  price: 0,
+  stock: 0,
+  colors: [],
+  sizes: [],
+  variantStock: [],
+  imageUrl: '',
+});
 
 type Props = {
   onSave: (data: FormData) => void;
   onClose: () => void;
 };
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export default function AddProductModal({ onSave, onClose }: Props) {
-  const [form, setForm]               = useState<FormData>(emptyForm());
-  const [errors, setErrors]           = useState<FormErrors>({});
-  const [imageFile, setImageFile]     = useState<File | null>(null);
+  const [form, setForm] = useState<FormData>(emptyForm());
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'error'>('idle');
-  const fileInputRef                  = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const subCategories = CATEGORY_MAP[form.category] ?? [];
-  const sizePool      = form.subCategory === 'Shoes' ? SHOE_SIZES : SIZE_OPTIONS;
+  const sizePool = form.subCategory === 'Shoes' ? SHOE_SIZES : SIZE_OPTIONS;
 
   const set = <K extends keyof FormData>(key: K, value: FormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const handleCategoryChange = (cat: string) =>
-    setForm((prev) => ({ ...prev, category: cat, subCategory: '', sizes: [] }));
+  const handleCategoryChange = (cat: string) => {
+    setForm((prev) => {
+      const nextSizes: string[] = [];
+      const nextVariantStock = buildVariantStock(prev.colors, nextSizes, prev.variantStock);
+      return {
+        ...prev,
+        category: cat,
+        subCategory: '',
+        sizes: nextSizes,
+        variantStock: nextVariantStock,
+        stock: totalStock(nextVariantStock),
+      };
+    });
+  };
 
-  // ── Image helpers ───────────────────────────────────────────────────────────
+  const handleSubCategoryChange = (subCategory: string) => {
+    setForm((prev) => {
+      const nextSizes: string[] = [];
+      const nextVariantStock = buildVariantStock(prev.colors, nextSizes, prev.variantStock);
+      return {
+        ...prev,
+        subCategory,
+        sizes: nextSizes,
+        variantStock: nextVariantStock,
+        stock: totalStock(nextVariantStock),
+      };
+    });
+  };
+
+  const toggleColor = (color: string) => {
+    setForm((prev) => {
+      const nextColors = toggleItem(prev.colors, color);
+      const nextVariantStock = buildVariantStock(nextColors, prev.sizes, prev.variantStock);
+      return {
+        ...prev,
+        colors: nextColors,
+        variantStock: nextVariantStock,
+        stock: totalStock(nextVariantStock),
+      };
+    });
+  };
+
+  const toggleSize = (size: string) => {
+    setForm((prev) => {
+      const nextSizes = toggleItem(prev.sizes, size);
+      const nextVariantStock = buildVariantStock(prev.colors, nextSizes, prev.variantStock);
+      return {
+        ...prev,
+        sizes: nextSizes,
+        variantStock: nextVariantStock,
+        stock: totalStock(nextVariantStock),
+      };
+    });
+  };
+
+  const setVariantStock = (color: string, size: string, stockValue: number) => {
+    const safeStock = Number.isFinite(stockValue) ? Math.max(0, stockValue) : 0;
+    setForm((prev) => {
+      const nextVariantStock = prev.variantStock.map((item) =>
+        item.color === color && item.size === size ? { ...item, stock: safeStock } : item,
+      );
+      return {
+        ...prev,
+        variantStock: nextVariantStock,
+        stock: totalStock(nextVariantStock),
+      };
+    });
+  };
 
   const handlePickFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -92,23 +178,23 @@ export default function AddProductModal({ onSave, onClose }: Props) {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // ── Validation ──────────────────────────────────────────────────────────────
-
   const validate = (): boolean => {
     const e: FormErrors = {};
-    if (!form.name.trim())  e.name  = 'Required';
+    if (!form.name.trim()) e.name = 'Required';
     if (!form.brand.trim()) e.brand = 'Required';
-    if (!form.category)     e.category = 'Required';
+    if (!form.category) e.category = 'Required';
     if (subCategories.length && !form.subCategory) e.subCategory = 'Required';
     if (!form.price || form.price <= 0) e.price = 'Must be > 0';
-    if (form.stock < 0)                 e.stock = 'Cannot be negative';
-    if (!form.colors.length)            e.colors = 'Select at least one';
-    if (!form.sizes.length)             e.sizes  = 'Select at least one';
+    if (!form.colors.length) e.colors = 'Select at least one';
+    if (!form.sizes.length) e.sizes = 'Select at least one';
+    if (!form.variantStock.length) e.variantStock = 'Set stock for each color and size';
+    if (form.variantStock.some((item) => item.stock < 0 || !Number.isFinite(item.stock))) {
+      e.variantStock = 'Stock values must be valid non-negative numbers';
+    }
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
-
-  // ── Save ────────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     if (!validate()) return;
@@ -130,7 +216,17 @@ export default function AddProductModal({ onSave, onClose }: Props) {
       }
     }
 
-    onSave({ ...form, imageUrl: finalImageUrl });
+    const finalVariantStock = form.variantStock.map((item) => ({
+      ...item,
+      stock: Math.max(0, Math.floor(item.stock || 0)),
+    }));
+
+    onSave({
+      ...form,
+      variantStock: finalVariantStock,
+      stock: totalStock(finalVariantStock),
+      imageUrl: finalImageUrl,
+    });
   };
 
   const handleClose = () => {
@@ -138,13 +234,9 @@ export default function AddProductModal({ onSave, onClose }: Props) {
     onClose();
   };
 
-  // ── Render ──────────────────────────────────────────────────────────────────
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 overflow-y-auto">
       <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-100 my-8">
-
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h2 className="text-lg font-bold text-slate-800">Add New Product</h2>
           <button
@@ -156,10 +248,7 @@ export default function AddProductModal({ onSave, onClose }: Props) {
           </button>
         </div>
 
-        {/* Body */}
         <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
-
-          {/* Image Upload */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-2">Product Image</label>
             <input
@@ -200,29 +289,45 @@ export default function AddProductModal({ onSave, onClose }: Props) {
             {errors.imageUrl && <p className="text-xs text-rose-500 mt-1">{errors.imageUrl}</p>}
           </div>
 
-          {/* Name + Brand */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Product Name *</label>
-              <input type="text" placeholder="e.g. Slim Fit Shirt" value={form.name}
-                onChange={(e) => set('name', e.target.value)} className={INPUT_CLASS} />
+              <input
+                type="text"
+                placeholder="e.g. Slim Fit Shirt"
+                value={form.name}
+                onChange={(e) => set('name', e.target.value)}
+                className={INPUT_CLASS}
+              />
               {errors.name && <p className="text-xs text-rose-500 mt-1">{errors.name}</p>}
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Brand *</label>
-              <input type="text" placeholder="e.g. Nike" value={form.brand}
-                onChange={(e) => set('brand', e.target.value)} className={INPUT_CLASS} />
+              <input
+                type="text"
+                placeholder="e.g. Nike"
+                value={form.brand}
+                onChange={(e) => set('brand', e.target.value)}
+                className={INPUT_CLASS}
+              />
               {errors.brand && <p className="text-xs text-rose-500 mt-1">{errors.brand}</p>}
             </div>
           </div>
 
-          {/* Category + Sub-Category */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Category *</label>
-              <select value={form.category} onChange={(e) => handleCategoryChange(e.target.value)} className={INPUT_CLASS}>
+              <select
+                value={form.category}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                className={INPUT_CLASS}
+              >
                 <option value="">Select category</option>
-                {Object.keys(CATEGORY_MAP).map((c) => <option key={c} value={c}>{c}</option>)}
+                {Object.keys(CATEGORY_MAP).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
               </select>
               {errors.category && <p className="text-xs text-rose-500 mt-1">{errors.category}</p>}
             </div>
@@ -232,36 +337,44 @@ export default function AddProductModal({ onSave, onClose }: Props) {
               </label>
               <select
                 value={form.subCategory}
-                onChange={(e) => { set('subCategory', e.target.value); set('sizes', []); }}
+                onChange={(e) => handleSubCategoryChange(e.target.value)}
                 disabled={subCategories.length === 0}
                 className={INPUT_CLASS + (subCategories.length === 0 ? ' opacity-50 cursor-not-allowed' : '')}
               >
                 <option value="">
                   {subCategories.length === 0 ? 'N/A for this category' : 'Select sub-category'}
                 </option>
-                {subCategories.map((s) => <option key={s} value={s}>{s}</option>)}
+                {subCategories.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
               </select>
               {errors.subCategory && <p className="text-xs text-rose-500 mt-1">{errors.subCategory}</p>}
             </div>
           </div>
 
-          {/* Price + Stock */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Price ($) *</label>
-              <input type="number" step="0.01" min="0" placeholder="0.00"
-                value={form.price || ''} onChange={(e) => set('price', Number(e.target.value))} className={INPUT_CLASS} />
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={form.price || ''}
+                onChange={(e) => set('price', Number(e.target.value))}
+                className={INPUT_CLASS}
+              />
               {errors.price && <p className="text-xs text-rose-500 mt-1">{errors.price}</p>}
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Stock *</label>
-              <input type="number" min="0" placeholder="0"
-                value={form.stock || ''} onChange={(e) => set('stock', Number(e.target.value))} className={INPUT_CLASS} />
-              {errors.stock && <p className="text-xs text-rose-500 mt-1">{errors.stock}</p>}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <label className="block text-xs font-semibold text-slate-600">Total Stock</label>
+              <p className="text-lg font-bold text-slate-800 leading-7">{form.stock}</p>
+              <p className="text-[11px] text-slate-500">Auto-calculated from variant stock below</p>
             </div>
           </div>
 
-          {/* Colors */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-2">Colors *</label>
             <div className="flex flex-wrap gap-2">
@@ -271,7 +384,7 @@ export default function AddProductModal({ onSave, onClose }: Props) {
                   <button
                     key={label}
                     type="button"
-                    onClick={() => set('colors', toggleItem(form.colors, label))}
+                    onClick={() => toggleColor(label)}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
                       selected
                         ? 'border-black bg-slate-100 text-black ring-1 ring-slate-500'
@@ -290,10 +403,10 @@ export default function AddProductModal({ onSave, onClose }: Props) {
             {errors.colors && <p className="text-xs text-rose-500 mt-1">{errors.colors}</p>}
           </div>
 
-          {/* Sizes */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-2">
-              Sizes *{!form.category && (
+              Sizes *
+              {!form.category && (
                 <span className="font-normal text-slate-400"> (select a category first)</span>
               )}
             </label>
@@ -305,7 +418,7 @@ export default function AddProductModal({ onSave, onClose }: Props) {
                     <button
                       key={size}
                       type="button"
-                      onClick={() => set('sizes', toggleItem(form.sizes, size))}
+                      onClick={() => toggleSize(size)}
                       className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
                         selected
                           ? 'border-black bg-black text-slate-400'
@@ -323,9 +436,45 @@ export default function AddProductModal({ onSave, onClose }: Props) {
             {errors.sizes && <p className="text-xs text-rose-500 mt-1">{errors.sizes}</p>}
           </div>
 
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-2">Stock Per Color and Size *</label>
+            {form.colors.length > 0 && form.sizes.length > 0 ? (
+              <div className="space-y-3">
+                {form.colors.map((color) => (
+                  <div key={color} className="rounded-xl border border-slate-200 p-3">
+                    <p className="text-sm font-semibold text-slate-700 mb-2">{color}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {form.sizes.map((size) => {
+                        const existing = form.variantStock.find(
+                          (item) => item.color === color && item.size === size,
+                        );
+                        const value = existing?.stock ?? 0;
+                        return (
+                          <label key={`${color}-${size}`} className="text-xs text-slate-600">
+                            <span className="mb-1 block">{size}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              className={INPUT_CLASS}
+                              value={value}
+                              onChange={(e) => setVariantStock(color, size, Number(e.target.value))}
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 italic">
+                Select at least one color and one size to assign stock.
+              </p>
+            )}
+            {errors.variantStock && <p className="text-xs text-rose-500 mt-1">{errors.variantStock}</p>}
+          </div>
         </div>
 
-        {/* Footer */}
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100">
           <button
             type="button"
@@ -336,7 +485,9 @@ export default function AddProductModal({ onSave, onClose }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => { void handleSave(); }}
+            onClick={() => {
+              void handleSave();
+            }}
             disabled={uploadState === 'uploading'}
             className="inline-flex items-center gap-2 rounded-xl bg-black px-5 py-2 text-sm font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
@@ -344,7 +495,6 @@ export default function AddProductModal({ onSave, onClose }: Props) {
             {uploadState === 'uploading' ? 'Uploading…' : 'Save Product'}
           </button>
         </div>
-
       </div>
     </div>
   );
