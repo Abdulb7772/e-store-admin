@@ -117,7 +117,7 @@ export default function AddProductModal({
     editorProps: {
       attributes: {
         class:
-          'min-h-[150px] rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-700',
+          'min-h-[170px] px-4 py-3 text-sm text-slate-700 focus:outline-none [&_h1]:text-lg [&_h1]:font-bold [&_h2]:text-[15px] [&_h2]:font-semibold [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:leading-6 [&_ul]:list-disc [&_ul]:pl-5',
       },
     },
     onUpdate: ({ editor }) => {
@@ -378,6 +378,18 @@ export default function AddProductModal({
     onClose();
   };
 
+  const toggleHeadingLevel = (level: 1 | 2) => {
+    if (!descriptionEditor) return;
+    const chain = descriptionEditor.chain().focus();
+
+    if (descriptionEditor.isActive('heading', { level })) {
+      chain.setParagraph().run();
+      return;
+    }
+
+    chain.setHeading({ level }).run();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 overflow-y-auto">
       <div className="w-full max-w-2xl rounded-2xl overflow-hidden bg-white shadow-2xl my-8">
@@ -494,7 +506,83 @@ export default function AddProductModal({
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Description</label>
-            <EditorContent editor={descriptionEditor} />
+            <div className="overflow-hidden rounded-xl border border-slate-300 bg-white">
+              <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => descriptionEditor?.chain().focus().toggleBold().run()}
+                  className={`rounded-md border px-3.5 py-1.5 text-base font-bold leading-none transition-colors ${
+                    descriptionEditor?.isActive('bold')
+                      ? 'border-slate-500 bg-slate-200 text-slate-900'
+                      : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                  }`}
+                  aria-label="Bold"
+                >
+                  B
+                </button>
+                <button
+                  type="button"
+                  onClick={() => descriptionEditor?.chain().focus().toggleItalic().run()}
+                  className={`rounded-md border px-3.5 py-1.5 text-base italic leading-none transition-colors ${
+                    descriptionEditor?.isActive('italic')
+                      ? 'border-slate-500 bg-slate-200 text-slate-900'
+                      : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                  }`}
+                  aria-label="Italic"
+                >
+                  I
+                </button>
+                <button
+                  type="button"
+                  onClick={() => descriptionEditor?.chain().focus().toggleBulletList().run()}
+                  className={`rounded-md border px-3.5 py-1.5 text-sm font-semibold leading-none transition-colors ${
+                    descriptionEditor?.isActive('bulletList')
+                      ? 'border-slate-500 bg-slate-200 text-slate-900'
+                      : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                  }`}
+                  aria-label="Bullet list"
+                >
+                  List
+                </button>
+                <button
+                  type="button"
+                  onClick={() => descriptionEditor?.chain().focus().toggleOrderedList().run()}
+                  className={`rounded-md border px-3.5 py-1.5 text-sm font-semibold leading-none transition-colors ${
+                    descriptionEditor?.isActive('orderedList')
+                      ? 'border-slate-500 bg-slate-200 text-slate-900'
+                      : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                  }`}
+                  aria-label="Numbered list"
+                >
+                  1. List
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleHeadingLevel(1)}
+                  className={`rounded-md border px-3.5 py-1.5 text-sm font-semibold leading-none transition-colors ${
+                    descriptionEditor?.isActive('heading', { level: 1 })
+                      ? 'border-slate-500 bg-slate-200 text-slate-900'
+                      : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                  }`}
+                  aria-label="Heading 1"
+                >
+                  H1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleHeadingLevel(2)}
+                  className={`rounded-md border px-3.5 py-1.5 text-sm font-semibold leading-none transition-colors ${
+                    descriptionEditor?.isActive('heading', { level: 2 })
+                      ? 'border-slate-500 bg-slate-200 text-slate-900'
+                      : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                  }`}
+                  aria-label="Heading 2"
+                >
+                  H2
+                </button>
+              </div>
+              <EditorContent editor={descriptionEditor} />
+            </div>
             <p className="mt-1 text-[11px] text-slate-500">Use rich text formatting for product details.</p>
           </div>
 

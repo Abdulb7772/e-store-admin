@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, ImageIcon, Eye, Pencil, Trash2 } from 'lucide-react';
+import { Plus, ImageIcon, Eye, Pencil, Trash2, X } from 'lucide-react';
 import AddProductModal from '@/components/AddProductModal';
 import { type Product, COLOR_OPTIONS } from '@/types/product';
 import { apiGet, apiPost } from '@/lib/api';
@@ -59,6 +59,21 @@ export default function ProductsPage() {
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+
+  const getProductImages = (product: Product | null): string[] => {
+    if (!product) return [];
+
+    const combined = [
+      ...(Array.isArray(product.imageUrls) ? product.imageUrls : []),
+      product.coverImageUrl || '',
+      product.imageUrl || '',
+    ];
+
+    return Array.from(new Set(combined.filter((url) => typeof url === 'string' && url.trim().length > 0)));
+  };
+
+  const viewingImages = getProductImages(viewingProduct);
+  const activeViewImage = viewingProduct?.coverImageUrl || viewingProduct?.imageUrl || viewingImages[0] || '';
 
   const toPayload = (product: Product): ProductPayload => {
     const { id, ...payload } = product;
@@ -257,26 +272,89 @@ export default function ProductsPage() {
       )}
 
       {viewingProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-100">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-800">Product Details</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/65">
+          <div className="w-full max-w-5xl rounded-xl bg-[#E5E7EB] shadow-2xl border border-slate-500/30 overflow-hidden">
+            <div className="relative flex items-center justify-center px-6 py-3 border-b border-slate-700 bg-[#111315]">
+              <h2 className="text-3xl font-semibold text-slate-300 leading-none">Product Details</h2>
               <button
                 type="button"
                 onClick={() => setViewingProduct(null)}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                className="absolute right-5 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+                aria-label="Close product details"
               >
-                Close
+                <X size={20} />
               </button>
             </div>
-            <div className="px-6 py-4 space-y-2 text-sm">
-              <p><span className="font-semibold text-slate-700">Name:</span> {viewingProduct.name}</p>
-              <p><span className="font-semibold text-slate-700">Brand:</span> {viewingProduct.brand}</p>
-              <p><span className="font-semibold text-slate-700">Category:</span> {viewingProduct.category}</p>
-              <p><span className="font-semibold text-slate-700">Sub-Category:</span> {viewingProduct.subCategory || 'n/a'}</p>
-              <p><span className="font-semibold text-slate-700">Dress Type:</span> {viewingProduct.dressType || 'n/a'}</p>
-              <p><span className="font-semibold text-slate-700">Price:</span> ${viewingProduct.price.toFixed(2)}</p>
-              <p><span className="font-semibold text-slate-700">Stock:</span> {viewingProduct.stock}</p>
+            <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] gap-5 px-6 py-6">
+              <div>
+                <div className="relative rounded-lg overflow-hidden border border-slate-300 bg-slate-100 h-[560px]">
+                  {activeViewImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={activeViewImage} alt={viewingProduct.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <ImageIcon size={28} className="text-slate-400" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-1 pr-1">
+                <h3 className="text-[46px] font-semibold text-[#111827] leading-[1.05] tracking-[-0.02em]">{viewingProduct.name}</h3>
+                <p className="mt-2 text-[30px] text-[#64748B] leading-none">{viewingProduct.brand}</p>
+
+                <p className="mt-7 text-[54px] font-bold text-[#111827] leading-none">${viewingProduct.price.toFixed(2)}</p>
+
+                <div className="mt-9 text-[34px] leading-tight text-[#475569]">
+                  <p>
+                    <span className="font-semibold text-[#334155]">Category:</span> {viewingProduct.category}
+                  </p>
+                  <p className="mt-1">
+                    <span className="font-semibold text-[#334155]">Sub-Category:</span> {viewingProduct.subCategory || 'N/A'}
+                  </p>
+                </div>
+
+                <div className="mt-8">
+                  <p className="text-[34px] font-semibold text-[#334155]">Colors</p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    {viewingProduct.colors.map((color) => {
+                      const match = COLOR_OPTIONS.find((option) => option.label === color);
+                      return (
+                        <span
+                          key={color}
+                          title={color}
+                          className="h-14 w-14 rounded-full border border-slate-400"
+                          style={{ backgroundColor: match?.hex ?? '#E2E8F0' }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-8">
+                  <p className="text-[34px] font-semibold text-[#334155]">Sizes</p>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    {viewingProduct.sizes.map((size) => (
+                      <span
+                        key={size}
+                        className="inline-flex h-[54px] min-w-[58px] items-center justify-center rounded-lg border border-[#CBD5E1] bg-[#E2E8F0] px-3 text-[26px] font-medium text-[#475569]"
+                      >
+                        {size}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-8">
+                  <span className="inline-flex rounded-full bg-emerald-200 px-4 py-2 text-[27px] font-semibold text-emerald-700">
+                    {viewingProduct.stock > 0 ? `Well Stocked (${viewingProduct.stock})` : 'Out of Stock'}
+                  </span>
+                </div>
+
+                <p className="mt-8 text-[34px] text-[#475569]">
+                  <span className="font-semibold text-[#334155]">Style:</span> {viewingProduct.dressType || 'N/A'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
