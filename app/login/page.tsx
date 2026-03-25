@@ -121,7 +121,7 @@ export default function LoginPage() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 sm:py-3 px-4 sm:px-6 text-sm sm:text-base rounded-full transition duration-300 mt-4 sm:mt-6 disabled:opacity-50"
+                    className="w-full bg-black hover:bg-slate-800 text-slate-400 font-bold py-2 sm:py-3 px-4 sm:px-6 text-sm sm:text-base rounded-full transition duration-300 mt-4 sm:mt-6 disabled:opacity-50"
                   >
                     {isSubmitting ? 'Signing In...' : 'Sign In'}
                   </button>
@@ -134,7 +134,7 @@ export default function LoginPage() {
               Don&apos;t have an account?{' '}
               <Link
                 href="/signup"
-                className="text-blue-600 font-semibold hover:underline"
+                className="text-black font-semibold hover:underline"
               >
                 Sign Up
               </Link>

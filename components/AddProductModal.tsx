@@ -188,11 +188,11 @@ export default function AddProductModal({ onSave, onClose }: Props) {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full h-36 rounded-xl border-2 border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50/40 flex flex-col items-center justify-center gap-2 transition-colors"
+                className="w-full h-36 rounded-xl border-2 border-dashed border-slate-300 hover:border-slate-700 hover:bg-slate-100 flex flex-col items-center justify-center gap-2 transition-colors"
               >
                 <ImageIcon size={28} className="text-slate-400" />
                 <p className="text-sm text-slate-500">
-                  <span className="font-semibold text-blue-600">Click to upload</span> or drag &amp; drop
+                  <span className="font-semibold text-black">Click to upload</span> or drag &amp; drop
                 </p>
                 <p className="text-xs text-slate-400">PNG, JPG, WEBP up to 10 MB</p>
               </button>
@@ -274,7 +274,7 @@ export default function AddProductModal({ onSave, onClose }: Props) {
                     onClick={() => set('colors', toggleItem(form.colors, label))}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
                       selected
-                        ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-400'
+                        ? 'border-black bg-slate-100 text-black ring-1 ring-slate-500'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400'
                     }`}
                   >
@@ -308,7 +308,7 @@ export default function AddProductModal({ onSave, onClose }: Props) {
                       onClick={() => set('sizes', toggleItem(form.sizes, size))}
                       className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
                         selected
-                          ? 'border-blue-500 bg-blue-600 text-white'
+                          ? 'border-black bg-black text-slate-400'
                           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400'
                       }`}
                     >
@@ -338,7 +338,7 @@ export default function AddProductModal({ onSave, onClose }: Props) {
             type="button"
             onClick={() => { void handleSave(); }}
             disabled={uploadState === 'uploading'}
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 rounded-xl bg-black px-5 py-2 text-sm font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
             {uploadState === 'uploading' && <Loader2 size={14} className="animate-spin" />}
             {uploadState === 'uploading' ? 'Uploading…' : 'Save Product'}

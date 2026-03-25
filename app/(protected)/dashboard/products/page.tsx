@@ -26,7 +26,7 @@ export default function ProductsPage() {
         <button
           type="button"
           onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2.5 transition-colors"
+          className="inline-flex items-center gap-2 rounded-xl bg-black hover:bg-slate-800 text-slate-400 text-sm font-semibold px-4 py-2.5 transition-colors"
         >
           <Plus size={16} />
           Add Product

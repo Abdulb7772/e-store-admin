@@ -21,10 +21,10 @@ export default function Header() {
   const title = pageTitles[pathname] ?? 'Admin Dashboard';
   const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || user?.username || 'Admin User';
   return (
-    <header className="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+    <header className="bg-black border-b border-slate-800 px-6 py-4 h-16 flex items-center justify-between sticky top-0 z-10">
       <div className="flex items-center gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-800">{title}</h2>
+          <h2 className="text-lg font-bold text-slate-400">{title}</h2>
           <p className="text-xs text-slate-400 mt-0.5">
             {new Date().toLocaleDateString('en-US', {
               weekday: 'long',
@@ -37,16 +37,16 @@ export default function Header() {
       </div>
       <div className="flex items-center gap-4">
         {/* Notifications */}
-        <button className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors">
+        <button className="relative p-2 rounded-lg text-slate-400 hover:bg-slate-800 transition-colors">
           <Bell size={18} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-slate-400 rounded-full ring-2 ring-black"></span>
         </button>
         {/* Profile */}
-        <button className="flex items-center gap-2 p-1.5 pr-3 rounded-lg hover:bg-slate-50 transition-colors">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-            <User size={14} className="text-white" />
+        <button className="flex items-center gap-2 p-1.5 pr-3 rounded-lg hover:bg-slate-800 transition-colors">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-slate-700 to-black flex items-center justify-center">
+            <User size={14} className="text-slate-400" />
           </div>
-          <span className="text-sm font-medium text-slate-700 hidden md:block">{displayName}</span>
+          <span className="text-sm font-medium text-slate-400 hidden md:block">{displayName}</span>
         </button>
       </div>
     </header>

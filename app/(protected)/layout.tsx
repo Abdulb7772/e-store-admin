@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import { useAuth } from '@/context/AuthContext';
 
 export default function ProtectedLayout({
   children,
@@ -13,18 +14,17 @@ export default function ProtectedLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { isAuthenticated } = useAuth();
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-
-    if (!token) {
+    if (!isAuthenticated) {
       router.replace('/login');
       return;
     }
 
     setCheckingAuth(false);
-  }, [pathname, router]);
+  }, [isAuthenticated, pathname, router]);
 
   if (checkingAuth) {
     return (

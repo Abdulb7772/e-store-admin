@@ -47,19 +47,19 @@ export default function DashboardPage() {
     <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
       <h1 className="text-2xl font-bold text-slate-800 mb-4">Dashboard Overview</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
+        <div className="p-4 rounded-xl bg-slate-100 border border-slate-200">
           <p className="text-xs text-slate-500">Total Revenue</p>
           <p className="text-xl font-bold text-slate-800">${stats?.totalRevenue?.toLocaleString() ?? 0}</p>
         </div>
-        <div className="p-4 rounded-xl bg-purple-50 border border-purple-100">
+        <div className="p-4 rounded-xl bg-slate-100 border border-slate-200">
           <p className="text-xs text-slate-500">Total Orders</p>
           <p className="text-xl font-bold text-slate-800">{stats?.totalOrders?.toLocaleString() ?? 0}</p>
         </div>
-        <div className="p-4 rounded-xl bg-cyan-50 border border-cyan-100">
+        <div className="p-4 rounded-xl bg-slate-100 border border-slate-200">
           <p className="text-xs text-slate-500">Total Users</p>
           <p className="text-xl font-bold text-slate-800">{stats?.totalUsers?.toLocaleString() ?? 0}</p>
         </div>
-        <div className="p-4 rounded-xl bg-amber-50 border border-amber-100">
+        <div className="p-4 rounded-xl bg-slate-100 border border-slate-200">
           <p className="text-xs text-slate-500">Total Products</p>
           <p className="text-xl font-bold text-slate-800">{stats?.totalProducts?.toLocaleString() ?? 0}</p>
         </div>

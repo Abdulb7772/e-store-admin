@@ -234,7 +234,7 @@ export default function SignupPage() {
               void submitSignup();
             }}
             disabled={isSubmitting}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full transition duration-300 mt-6 disabled:opacity-50"
+            className="w-full bg-black hover:bg-slate-800 text-slate-400 font-bold py-3 px-6 rounded-full transition duration-300 mt-6 disabled:opacity-50"
           >
             {isSubmitting ? 'Creating Account...' : 'Sign Up'}
           </button>
@@ -244,7 +244,7 @@ export default function SignupPage() {
           Do you have an account?{' '}
           <Link
             href="/login"
-            className="text-blue-300 font-semibold hover:underline"
+            className="text-slate-200 font-semibold hover:underline"
           >
             Sign In
           </Link>
