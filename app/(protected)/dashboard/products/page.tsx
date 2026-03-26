@@ -112,11 +112,10 @@ export default function ProductsPage() {
       try {
         const data = await apiGet<ApiProduct[]>('/admin/products');
         if (!mounted) return;
-        if (Array.isArray(data) && data.length > 0) {
-          setProducts(data.map(normalizeProduct));
-        }
+        setProducts(Array.isArray(data) ? data.map(normalizeProduct) : []);
       } catch {
-        // Fallback to local sample products when backend is unavailable.
+        if (!mounted) return;
+        setProducts([]);
       }
     };
 
@@ -166,10 +165,7 @@ export default function ProductsPage() {
       setIsModalOpen(false);
       toast.success('Product added successfully.');
     } catch {
-      const fallbackId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      setProducts((prev) => [{ id: fallbackId, ...data }, ...prev]);
-      setIsModalOpen(false);
-      toast.error('Failed to save product to backend. Added locally for now.');
+      toast.error('Failed to save product to backend.');
     } finally {
       setIsSaving(false);
     }

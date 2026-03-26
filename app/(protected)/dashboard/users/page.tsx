@@ -11,7 +11,7 @@ type User = {
   lastName: string;
   username: string;
   emailPhone: string;
-  role: 'user' | 'admin';
+  role: 'staff' | 'admin' | 'customer' | 'manager' | 'user';
   isActive: boolean;
   createdAt: string;
 };
@@ -31,9 +31,19 @@ type StaffRow = {
   userId: string;
   email: string;
   phone: string;
-  role: 'user' | 'admin';
+  role: 'staff' | 'admin' | 'manager';
   isActive: boolean;
   joinedDate: string;
+};
+
+const STAFF_ROLES = ['staff', 'manager', 'admin'] as const;
+
+const normalizeRole = (role: User['role']): StaffRow['role'] | 'customer' => {
+  return role === 'user' ? 'customer' : role;
+};
+
+const isStaffRole = (role: User['role']): role is StaffRow['role'] => {
+  return STAFF_ROLES.includes(normalizeRole(role) as StaffRow['role']);
 };
 
 const extractEmail = (emailPhone: string): string => {
@@ -45,7 +55,7 @@ const extractPhone = (emailPhone: string): string => {
 };
 
 const generateUserId = (role: string, index: number): string => {
-  const prefix = role === 'admin' ? 'ADMIN' : 'STAFF';
+  const prefix = role === 'admin' ? 'ad' : role === 'staff' ? 'st' : 'mgr';
   return `${prefix}${String(index + 1).padStart(3, '0')}`;
 };
 
@@ -75,7 +85,7 @@ export default function UsersPage() {
 
   const { customers, staff } = useMemo(() => {
     const customersList = users
-      .filter((user) => user.role === 'user')
+      .filter((user) => normalizeRole(user.role) === 'customer')
       .map((user): CustomerRow => ({
         id: String(user._id || user.id || ''),
         fullName: `${user.firstName} ${user.lastName}`,
@@ -86,14 +96,14 @@ export default function UsersPage() {
       }));
 
     const staffList = users
-      .filter((user) => user.role !== 'user')
+      .filter((user) => isStaffRole(user.role))
       .map((user, index): StaffRow => ({
         id: String(user._id || user.id || ''),
         fullName: `${user.firstName} ${user.lastName}`,
-        userId: generateUserId(user.role, index),
+        userId: generateUserId(normalizeRole(user.role), index),
         email: extractEmail(user.emailPhone),
         phone: extractPhone(user.emailPhone),
-        role: user.role,
+        role: normalizeRole(user.role) as StaffRow['role'],
         isActive: user.isActive,
         joinedDate: new Date(user.createdAt).toLocaleDateString(),
       }));
@@ -124,7 +134,7 @@ export default function UsersPage() {
     toast.success('Staff status updated.');
   };
 
-  const handleStaffRoleChange = (staffId: string, newRole: 'user' | 'admin') => {
+  const handleStaffRoleChange = (staffId: string, newRole: 'staff' | 'admin' | 'manager') => {
     setUsers((prev) =>
       prev.map((user) =>
         String(user._id || user.id) === staffId ? { ...user, role: newRole } : user,
@@ -253,11 +263,12 @@ export default function UsersPage() {
                     <td className="px-4 py-3">
                       <select
                         value={member.role}
-                        onChange={(e) => handleStaffRoleChange(member.id, e.target.value as 'user' | 'admin')}
+                        onChange={(e) => handleStaffRoleChange(member.id, e.target.value as 'staff' | 'admin' | 'manager')}
                         className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-700"
                       >
                         <option value="admin">Admin</option>
-                        <option value="user">Staff</option>
+                        <option value="staff">Staff</option>
+                        <option value="manager">Manager</option>
                       </select>
                     </td>
                     <td className="px-4 py-3">
