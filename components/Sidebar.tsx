@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import {
   LayoutDashboard,
@@ -13,6 +13,7 @@ import {
   TrendingUp,
   Tag,
   Boxes,
+  BadgeDollarSign,
   LogOut,
   ChevronRight,
   ChevronsLeft,
@@ -24,6 +25,7 @@ const navItems = [
   { label: 'Products', href: '/dashboard/products', icon: ShoppingBag },
   { label: 'Stocks', href: '/dashboard/stocks', icon: Boxes },
   { label: 'Orders', href: '/dashboard/orders', icon: ClipboardList },
+  { label: 'Sales', href: '/dashboard/sales', icon: BadgeDollarSign },
   { label: 'Users', href: '/dashboard/users', icon: Users },
   { label: 'Analytics', href: '/dashboard/analytics', icon: TrendingUp },
   { label: 'Promotions', href: '/dashboard/promotions', icon: Tag },
@@ -33,7 +35,8 @@ const navItems = [
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(true);
   const pathname = usePathname();
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, logout } = useAuth();
 
   const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || user?.username || 'Admin User';
   const displayEmail = user?.email || user?.username || 'admin@shop.com';
@@ -42,6 +45,11 @@ export default function Sidebar() {
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard';
     return pathname.startsWith(href);
+  };
+
+  const handleLogout = () => {
+    logout();
+    router.replace('/login');
   };
 
   return (
@@ -110,22 +118,26 @@ export default function Sidebar() {
 
       {/* Bottom profile */}
       <div className="px-3 py-4 border-t border-slate-100">
-        <div
-          className={`flex items-center px-3 py-2.5 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors ${
+        <button
+          type="button"
+          onClick={handleLogout}
+          className={`w-full min-w-0 overflow-hidden flex items-center px-3 py-2.5 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors ${
             isOpen ? 'gap-3' : 'justify-center gap-2'
           }`}
+          title="Logout"
+          aria-label="Logout"
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-700 to-black flex items-center justify-center text-slate-400 text-sm font-bold flex-shrink-0">
             {avatarInitial}
           </div>
           {isOpen && (
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 overflow-hidden">
               <p className="text-sm font-semibold text-slate-700 truncate">{displayName}</p>
               <p className="text-xs text-slate-400 truncate">{displayEmail}</p>
             </div>
           )}
           {isOpen && <LogOut size={16} className="text-slate-400 flex-shrink-0" />}
-        </div>
+        </button>
       </div>
     </aside>
   );

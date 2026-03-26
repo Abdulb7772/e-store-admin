@@ -4,6 +4,11 @@ export type VariantStock = {
   stock: number;
 };
 
+export type ColorImageMap = {
+  color: string;
+  imageUrl: string;
+};
+
 export type Product = {
   id: number | string;
   sku?: string;
@@ -14,10 +19,15 @@ export type Product = {
   category: string;
   subCategory: string;
   price: number;
+  originalPrice?: number;
+  salePercentage?: number;
+  isOnSale?: boolean;
+  promotionTag?: '' | 'new-arrivals' | 'top-sales';
   stock: number;
   colors: string[];
   sizes: string[];
   variantStock: VariantStock[];
+  colorImageMap?: ColorImageMap[];
   imageUrls?: string[];
   coverImageUrl?: string;
   imageUrl?: string;

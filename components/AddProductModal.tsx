@@ -7,6 +7,7 @@ import StarterKit from '@tiptap/starter-kit';
 import {
   type Product,
   type VariantStock,
+  type ColorImageMap,
   CATEGORY_MAP,
   COLOR_OPTIONS,
   SIZE_OPTIONS,
@@ -80,6 +81,7 @@ const emptyForm = (): FormData => ({
   colors: [],
   sizes: [],
   variantStock: [],
+  colorImageMap: [],
   imageUrls: [],
   coverImageUrl: '',
   imageUrl: '',
@@ -103,6 +105,7 @@ export default function AddProductModal({
   const [form, setForm] = useState<FormData>(emptyForm());
   const [errors, setErrors] = useState<FormErrors>({});
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
+  const [colorImageByColor, setColorImageByColor] = useState<Record<string, string>>({});
   const [coverImageId, setCoverImageId] = useState('');
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'error'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -158,10 +161,23 @@ export default function AddProductModal({
         ...initialData,
         description: initialData.description ?? '',
         dressType: initialData.dressType ?? '',
+        colorImageMap: initialData.colorImageMap ?? [],
         imageUrls: existingImages.map((image) => image.previewUrl),
         coverImageUrl: explicitCover,
         imageUrl: explicitCover,
       });
+      const initialColorMap = (initialData.colorImageMap ?? []).reduce<Record<string, string>>((acc, entry) => {
+        const color = String(entry?.color || '').trim();
+        const imageUrl = String(entry?.imageUrl || '').trim();
+        const matchedImageId = existingImages.find((image) => image.previewUrl === imageUrl)?.id;
+
+        if (color && matchedImageId) {
+          acc[color] = matchedImageId;
+        }
+
+        return acc;
+      }, {});
+      setColorImageByColor(initialColorMap);
       setSelectedImages((prev) => {
         revokeNewPreviews(prev);
         return existingImages;
@@ -178,6 +194,7 @@ export default function AddProductModal({
       return [];
     });
     setCoverImageId('');
+    setColorImageByColor({});
     setErrors({});
     setUploadState('idle');
   }, [initialData]);
@@ -226,6 +243,11 @@ export default function AddProductModal({
     setForm((prev) => {
       const nextColors = toggleItem(prev.colors, color);
       const nextVariantStock = buildVariantStock(nextColors, prev.sizes, prev.variantStock);
+      setColorImageByColor((prevColorMap) =>
+        Object.fromEntries(
+          Object.entries(prevColorMap).filter(([mappedColor]) => nextColors.includes(mappedColor)),
+        ),
+      );
       return {
         ...prev,
         colors: nextColors,
@@ -297,6 +319,11 @@ export default function AddProductModal({
       }
       return next;
     });
+    setColorImageByColor((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).filter(([, mappedImageId]) => mappedImageId !== imageId),
+      ),
+    );
     setUploadState('idle');
   };
 
@@ -326,6 +353,7 @@ export default function AddProductModal({
 
     let finalImageUrls: string[] = [];
     let finalCoverImageUrl = '';
+    let finalImageEntries: Array<{ id: string; url: string }> = [];
 
     if (selectedImages.length > 0) {
       try {
@@ -344,6 +372,7 @@ export default function AddProductModal({
           return Boolean(entry?.url);
         });
 
+        finalImageEntries = validEntries;
         finalImageUrls = validEntries.map((entry) => entry.url);
         finalCoverImageUrl =
           validEntries.find((entry) => entry.id === coverImageId)?.url || finalImageUrls[0] || '';
@@ -363,10 +392,31 @@ export default function AddProductModal({
       stock: Math.max(0, Math.floor(item.stock || 0)),
     }));
 
+    const imageUrlById = new Map(
+      finalImageEntries.map((entry) => [entry.id, entry.url]),
+    );
+
+    const finalColorImageMap: ColorImageMap[] = form.colors
+      .map((color) => {
+        const mappedImageId = colorImageByColor[color];
+        const imageUrl = mappedImageId ? imageUrlById.get(mappedImageId) : undefined;
+
+        if (!mappedImageId || !imageUrl) {
+          return null;
+        }
+
+        return {
+          color,
+          imageUrl,
+        };
+      })
+      .filter((entry): entry is ColorImageMap => Boolean(entry));
+
     onSave({
       ...form,
       variantStock: finalVariantStock,
       stock: totalStock(finalVariantStock),
+      colorImageMap: finalColorImageMap,
       imageUrls: finalImageUrls,
       coverImageUrl: finalCoverImageUrl,
       imageUrl: finalCoverImageUrl,
@@ -472,6 +522,48 @@ export default function AddProductModal({
             {(errors.imageUrls || errors.coverImageUrl || errors.imageUrl) && (
               <p className="text-xs text-rose-500 mt-1">{errors.imageUrls || errors.coverImageUrl || errors.imageUrl}</p>
             )}
+
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <label className="block text-xs font-semibold text-slate-600 mb-2">Link Colors to Images (Optional)</label>
+              {form.colors.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">Select colors to assign image links.</p>
+              ) : selectedImages.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">Upload images first, then assign one image per color.</p>
+              ) : (
+                <div className="space-y-2">
+                  {form.colors.map((color) => (
+                    <div key={color} className="grid grid-cols-[90px_1fr] items-center gap-2">
+                      <p className="text-xs font-semibold text-slate-700">{color}</p>
+                      <select
+                        value={colorImageByColor[color] || ''}
+                        onChange={(e) => {
+                          const nextValue = e.target.value;
+                          setColorImageByColor((prev) => {
+                            if (!nextValue) {
+                              const { [color]: _removed, ...rest } = prev;
+                              return rest;
+                            }
+
+                            return {
+                              ...prev,
+                              [color]: nextValue,
+                            };
+                          });
+                        }}
+                        className={INPUT_CLASS + ' py-1.5'}
+                      >
+                        <option value="">No linked image</option>
+                        {selectedImages.map((image, index) => (
+                          <option key={image.id} value={image.id}>
+                            Image {index + 1}{coverImageId === image.id ? ' (Cover)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -530,7 +622,7 @@ export default function AddProductModal({
                   }`}
                   aria-label="Italic"
                 >
-                  I
+                  i
                 </button>
                 <button
                   type="button"

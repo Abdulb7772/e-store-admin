@@ -5,7 +5,7 @@ import { Plus, ImageIcon, Eye, Pencil, Trash2, X, ChevronLeft, ChevronRight, Sea
 import AddProductModal from '@/components/AddProductModal';
 import { useToast } from '@/components/ToastProvider';
 import { type Product, COLOR_OPTIONS } from '@/types/product';
-import { apiDelete, apiGet, apiPost } from '@/lib/api';
+import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api';
 
 type ProductPayload = Omit<Product, 'id'>;
 
@@ -24,6 +24,7 @@ type ApiProduct = {
   colors: string[];
   sizes: string[];
   variantStock: Product['variantStock'];
+  colorImageMap?: Product['colorImageMap'];
   imageUrls?: string[];
   coverImageUrl?: string;
   imageUrl?: string;
@@ -49,6 +50,7 @@ const normalizeProduct = (p: ApiProduct): Product => {
     colors: p.colors ?? [],
     sizes: p.sizes ?? [],
     variantStock: p.variantStock ?? [],
+    colorImageMap: p.colorImageMap ?? [],
     imageUrls: normalizedImageUrls,
     coverImageUrl: coverImage,
     imageUrl: coverImage,
@@ -171,12 +173,20 @@ export default function ProductsPage() {
     }
   };
 
-  const handleUpdateProduct = (data: ProductPayload) => {
+  const handleUpdateProduct = async (data: ProductPayload) => {
     if (!editingProduct) return;
-    const updatedProduct: Product = { id: editingProduct.id, ...data };
-    setProducts((prev) => prev.map((p) => (p.id === editingProduct.id ? updatedProduct : p)));
-    setEditingProduct(null);
-    toast.success('Product updated successfully.');
+
+    setIsSaving(true);
+    try {
+      const updated = await apiPut<ApiProduct, ProductPayload>(`/admin/products/${editingProduct.id}`, data);
+      setProducts((prev) => prev.map((p) => (p.id === editingProduct.id ? normalizeProduct(updated) : p)));
+      setEditingProduct(null);
+      toast.success('Product updated successfully.');
+    } catch {
+      toast.error('Failed to update product in backend.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const requestDeleteProduct = (product: Product) => {
@@ -540,7 +550,7 @@ export default function ProductsPage() {
           submitLabel="Update Product"
           initialData={toPayload(editingProduct)}
           onSave={(data) => {
-            handleUpdateProduct(data);
+            void handleUpdateProduct(data);
           }}
           onClose={() => setEditingProduct(null)}
         />

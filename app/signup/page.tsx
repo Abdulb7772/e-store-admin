@@ -9,6 +9,7 @@ import { useToast } from '@/components/ToastProvider';
 type SignupValues = {
   firstName: string;
   lastName: string;
+  phoneNumber: string;
   emailPhone: string;
   createPassword: string;
   confirmPassword: string;
@@ -19,6 +20,7 @@ type SignupErrors = Partial<Record<keyof SignupValues, string>>;
 const initialValues: SignupValues = {
   firstName: '',
   lastName: '',
+  phoneNumber: '',
   emailPhone: '',
   createPassword: '',
   confirmPassword: '',
@@ -35,6 +37,10 @@ function validate(values: SignupValues): SignupErrors {
 
   if (values.lastName.trim().length < 2) {
     errors.lastName = 'Last name must be at least 2 characters';
+  }
+
+  if (!phoneRegex.test(values.phoneNumber.trim())) {
+    errors.phoneNumber = 'Must be a valid phone number';
   }
 
   if (!values.emailPhone.trim()) {
@@ -93,6 +99,7 @@ export default function SignupPage() {
           password: values.createPassword,
           firstName: values.firstName.trim(),
           lastName: values.lastName.trim(),
+          phoneNumber: values.phoneNumber.trim(),
           role: 'admin',
         }),
       });
@@ -180,6 +187,21 @@ export default function SignupPage() {
             />
             {errors.lastName && (
               <div className="text-red-300 text-sm mt-1 ml-4">{errors.lastName}</div>
+            )}
+          </div>
+
+          <div>
+            <input
+              type="text"
+              name="phoneNumber"
+              value={values.phoneNumber}
+              onChange={(event) => updateField('phoneNumber', event.target.value)}
+              placeholder="Phone Number"
+              autoComplete="tel"
+              className="w-full px-4 py-3 rounded-full border-2 border-white/50 bg-white/10 backdrop-blur-sm placeholder-white/70 text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white"
+            />
+            {errors.phoneNumber && (
+              <div className="text-red-300 text-sm mt-1 ml-4">{errors.phoneNumber}</div>
             )}
           </div>
 
