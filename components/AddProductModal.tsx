@@ -117,7 +117,7 @@ export default function AddProductModal({
     editorProps: {
       attributes: {
         class:
-          'min-h-[170px] px-4 py-3 text-sm text-slate-700 focus:outline-none [&_h1]:text-lg [&_h1]:font-bold [&_h2]:text-[15px] [&_h2]:font-semibold [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:leading-6 [&_ul]:list-disc [&_ul]:pl-5',
+          'min-h-[170px] px-4 py-3 text-sm text-slate-700 focus:outline-none [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-semibold [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:leading-6 [&_ul]:list-disc [&_ul]:pl-5',
       },
     },
     onUpdate: ({ editor }) => {

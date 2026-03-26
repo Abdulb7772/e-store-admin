@@ -6,6 +6,7 @@ export type VariantStock = {
 
 export type Product = {
   id: number | string;
+  sku?: string;
   name: string;
   description?: string;
   brand: string;

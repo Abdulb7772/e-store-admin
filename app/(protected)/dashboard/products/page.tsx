@@ -1,16 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Plus, ImageIcon, Eye, Pencil, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, ImageIcon, Eye, Pencil, Trash2, X, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import AddProductModal from '@/components/AddProductModal';
+import { useToast } from '@/components/ToastProvider';
 import { type Product, COLOR_OPTIONS } from '@/types/product';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiDelete, apiGet, apiPost } from '@/lib/api';
 
 type ProductPayload = Omit<Product, 'id'>;
 
 type ApiProduct = {
   _id?: string;
   id?: number | string;
+  sku?: string;
   name: string;
   description?: string;
   brand: string;
@@ -35,6 +37,7 @@ const normalizeProduct = (p: ApiProduct): Product => {
 
   return {
     id: p._id ?? p.id ?? String(Date.now()),
+    sku: p.sku,
     name: p.name,
     description: p.description,
     brand: p.brand,
@@ -53,12 +56,22 @@ const normalizeProduct = (p: ApiProduct): Product => {
 };
 
 export default function ProductsPage() {
+  const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const [activeViewImageIndex, setActiveViewImageIndex] = useState(0);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPageInput, setItemsPerPageInput] = useState('10');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedSubCategory, setSelectedSubCategory] = useState('');
+  const [selectedBrand, setSelectedBrand] = useState('');
+  const [query, setQuery] = useState('');
 
   const getProductImages = (product: Product | null): string[] => {
     if (!product) return [];
@@ -73,7 +86,19 @@ export default function ProductsPage() {
   };
 
   const viewingImages = getProductImages(viewingProduct);
-  const activeViewImage = viewingProduct?.coverImageUrl || viewingProduct?.imageUrl || viewingImages[0] || '';
+  const activeViewImage = viewingImages[activeViewImageIndex] || viewingImages[0] || '';
+
+  const cycleViewImage = (direction: 1 | -1) => {
+    if (viewingImages.length < 2) return;
+
+    setActiveViewImageIndex((prev) => {
+      const next = prev + direction;
+
+      if (next < 0) return viewingImages.length - 1;
+      if (next >= viewingImages.length) return 0;
+      return next;
+    });
+  };
 
   const toPayload = (product: Product): ProductPayload => {
     const { id, ...payload } = product;
@@ -102,16 +127,49 @@ export default function ProductsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setViewingProduct(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!viewingProduct) {
+      setActiveViewImageIndex(0);
+      return;
+    }
+
+    const images = getProductImages(viewingProduct);
+    if (!images.length) {
+      setActiveViewImageIndex(0);
+      return;
+    }
+
+    const preferredImage = viewingProduct.coverImageUrl || viewingProduct.imageUrl || '';
+    const preferredIndex = preferredImage ? images.findIndex((url) => url === preferredImage) : -1;
+    setActiveViewImageIndex(preferredIndex >= 0 ? preferredIndex : 0);
+  }, [viewingProduct]);
+
   const handleSaveProduct = async (data: ProductPayload) => {
     setIsSaving(true);
     try {
       const created = await apiPost<ApiProduct, ProductPayload>('/admin/products', data);
       setProducts((prev) => [normalizeProduct(created), ...prev]);
       setIsModalOpen(false);
+      toast.success('Product added successfully.');
     } catch {
       const fallbackId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       setProducts((prev) => [{ id: fallbackId, ...data }, ...prev]);
       setIsModalOpen(false);
+      toast.error('Failed to save product to backend. Added locally for now.');
     } finally {
       setIsSaving(false);
     }
@@ -122,16 +180,135 @@ export default function ProductsPage() {
     const updatedProduct: Product = { id: editingProduct.id, ...data };
     setProducts((prev) => prev.map((p) => (p.id === editingProduct.id ? updatedProduct : p)));
     setEditingProduct(null);
+    toast.success('Product updated successfully.');
   };
 
   const requestDeleteProduct = (product: Product) => {
     setProductToDelete(product);
   };
 
-  const confirmDeleteProduct = () => {
+  const confirmDeleteProduct = async () => {
     if (!productToDelete) return;
-    setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
-    setProductToDelete(null);
+
+    setIsDeleting(true);
+
+    try {
+      await apiDelete(`/admin/products/${productToDelete.id}`);
+      setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
+      toast.success('Product deleted successfully');
+      setProductToDelete(null);
+    } catch (error) {
+      console.error('Failed to delete product:', error);
+      toast.error('Failed to delete product from backend. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const categoryOptions = useMemo(() => {
+    return Array.from(new Set(products.map((product) => product.category).filter((value) => Boolean(value)))).sort();
+  }, [products]);
+
+  const subCategoryOptions = useMemo(() => {
+    const source = selectedCategory
+      ? products.filter((product) => product.category === selectedCategory)
+      : products;
+
+    return Array.from(new Set(source.map((product) => product.subCategory).filter((value) => Boolean(value)))).sort();
+  }, [products, selectedCategory]);
+
+  const brandOptions = useMemo(() => {
+    const source = products.filter((product) => {
+      if (selectedCategory && product.category !== selectedCategory) return false;
+      if (selectedSubCategory && product.subCategory !== selectedSubCategory) return false;
+      return true;
+    });
+
+    return Array.from(new Set(source.map((product) => product.brand).filter((value) => Boolean(value)))).sort();
+  }, [products, selectedCategory, selectedSubCategory]);
+
+  useEffect(() => {
+    if (selectedSubCategory && !subCategoryOptions.includes(selectedSubCategory)) {
+      setSelectedSubCategory('');
+    }
+  }, [selectedSubCategory, subCategoryOptions]);
+
+  useEffect(() => {
+    if (selectedBrand && !brandOptions.includes(selectedBrand)) {
+      setSelectedBrand('');
+    }
+  }, [selectedBrand, brandOptions]);
+
+  const filteredProducts = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return products.filter((product) => {
+      if (selectedCategory && product.category !== selectedCategory) return false;
+      if (selectedSubCategory && product.subCategory !== selectedSubCategory) return false;
+      if (selectedBrand && product.brand !== selectedBrand) return false;
+
+      if (!normalizedQuery) return true;
+
+      const matchesName = product.name.toLowerCase().includes(normalizedQuery);
+      const matchesBrand = product.brand.toLowerCase().includes(normalizedQuery);
+      const matchesCategory = product.category.toLowerCase().includes(normalizedQuery);
+      const matchesSubCategory = product.subCategory.toLowerCase().includes(normalizedQuery);
+      const matchesColor = product.colors.some((color) => color.toLowerCase().includes(normalizedQuery));
+
+      return matchesName || matchesBrand || matchesCategory || matchesSubCategory || matchesColor;
+    });
+  }, [products, selectedCategory, selectedSubCategory, selectedBrand, query]);
+
+  const totalItems = filteredProducts.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory, selectedSubCategory, selectedBrand, query]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
+
+  const pageStart = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const pageEnd = Math.min(currentPage * itemsPerPage, totalItems);
+
+  const handleItemsPerPageInputChange = (value: string) => {
+    if (!/^\d*$/.test(value)) return;
+
+    setItemsPerPageInput(value);
+
+    if (value === '') return;
+
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      setItemsPerPage(parsed);
+      setCurrentPage(1);
+    }
+  };
+
+  const commitItemsPerPageInput = () => {
+    if (itemsPerPageInput === '') {
+      setItemsPerPageInput(String(itemsPerPage));
+      return;
+    }
+
+    const parsed = Number(itemsPerPageInput);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setItemsPerPageInput(String(itemsPerPage));
+      return;
+    }
+
+    setItemsPerPage(parsed);
+    setItemsPerPageInput(String(parsed));
+    setCurrentPage(1);
   };
 
   return (
@@ -153,13 +330,66 @@ export default function ProductsPage() {
         </button>
       </div>
 
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="relative sm:col-span-3">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by product name, brand, category, sub-category or color..."
+            className="w-full rounded-xl border border-slate-300 pl-10 pr-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-700"
+          />
+        </div>
+
+        <select
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-700"
+        >
+          <option value="">All categories</option>
+          {categoryOptions.map((category) => (
+            <option key={category} value={category}>
+              {category}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={selectedSubCategory}
+          onChange={(e) => setSelectedSubCategory(e.target.value)}
+          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-700"
+        >
+          <option value="">All sub-categories</option>
+          {subCategoryOptions.map((subCategory) => (
+            <option key={subCategory} value={subCategory}>
+              {subCategory}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={selectedBrand}
+          onChange={(e) => setSelectedBrand(e.target.value)}
+          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-700"
+        >
+          <option value="">All brands</option>
+          {brandOptions.map((brand) => (
+            <option key={brand} value={brand}>
+              {brand}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-slate-200">
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600">
+          <thead className="bg-black/90 text-slate-300">
             <tr>
               <th className="text-left font-semibold px-4 py-3">Image</th>
               <th className="text-left font-semibold px-4 py-3">Name</th>
+              <th className="text-left font-semibold px-4 py-3">SKU</th>
               <th className="text-left font-semibold px-4 py-3">Brand</th>
               <th className="text-left font-semibold px-4 py-3">Category</th>
               <th className="text-left font-semibold px-4 py-3">Sub-Category</th>
@@ -172,7 +402,7 @@ export default function ProductsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {products.map((p) => (
+            {paginatedProducts.map((p) => (
               <tr key={p.id} className="hover:bg-slate-50/70">
                 <td className="px-4 py-3">
                   {(p.coverImageUrl || p.imageUrl) ? (
@@ -185,6 +415,7 @@ export default function ProductsPage() {
                   )}
                 </td>
                 <td className="px-4 py-3 font-medium text-slate-800">{p.name}</td>
+                <td className="px-4 py-3 text-slate-600">{p.sku || '-'}</td>
                 <td className="px-4 py-3 text-slate-600">{p.brand}</td>
                 <td className="px-4 py-3 text-slate-600">{p.category}</td>
                 <td className="px-4 py-3 text-slate-600">{p.subCategory || 'n/a'}</td>
@@ -248,6 +479,54 @@ export default function ProductsPage() {
         </table>
       </div>
 
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-slate-500">
+          Showing {pageStart}-{pageEnd} of {totalItems}
+        </p>
+
+        <div className="flex items-center gap-2">
+          <label htmlFor="products-per-page" className="text-xs font-medium text-slate-600">
+            Per page
+          </label>
+          <input
+            id="products-per-page"
+            type="text"
+            inputMode="numeric"
+            value={itemsPerPageInput}
+            onChange={(e) => handleItemsPerPageInputChange(e.target.value)}
+            onBlur={commitItemsPerPageInput}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                commitItemsPerPageInput();
+              }
+            }}
+            className="w-16 rounded-lg border border-slate-300 px-2 py-1 text-center text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-700"
+          />
+
+          <div className="ml-2 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Prev
+            </button>
+            <span className="px-2 text-xs text-slate-600">
+              Page {currentPage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+
       {isModalOpen && (
         <AddProductModal
           title="Add New Product"
@@ -272,10 +551,10 @@ export default function ProductsPage() {
       )}
 
       {viewingProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/65">
-          <div className="w-full max-w-5xl rounded-xl bg-[#E5E7EB] shadow-2xl border border-slate-500/30 overflow-hidden">
-            <div className="relative flex items-center justify-center px-6 py-3 border-b border-slate-700 bg-[#111315]">
-              <h2 className="text-3xl font-semibold text-slate-300 leading-none">Product Details</h2>
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 bg-slate-900/65 overflow-y-auto">
+          <div className="my-2 sm:my-0 w-full max-w-3xl max-h-[calc(100vh-1.5rem)] sm:max-h-[calc(100vh-2rem)] rounded-xl bg-[#E5E7EB] shadow-2xl border border-slate-500/30 overflow-y-auto">
+            <div className="relative flex items-center justify-center px-5 py-3 border-b border-slate-700 bg-[#111315]">
+              <h2 className="text-md font-semibold text-slate-300 leading-none">Product Details</h2>
               <button
                 type="button"
                 onClick={() => setViewingProduct(null)}
@@ -285,9 +564,11 @@ export default function ProductsPage() {
                 <X size={20} />
               </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] gap-5 px-6 py-6">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr] gap-4 px-5 py-5">
               <div>
-                <div className="relative rounded-lg overflow-hidden border border-slate-300 bg-slate-100 h-[560px]">
+                <div
+                  className="relative rounded-lg overflow-hidden border border-slate-300 bg-slate-100 h-[380px] md:h-[420px]"
+                >
                   {activeViewImage ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={activeViewImage} alt={viewingProduct.name} className="w-full h-full object-cover" />
@@ -296,16 +577,60 @@ export default function ProductsPage() {
                       <ImageIcon size={28} className="text-slate-400" />
                     </div>
                   )}
+
+                  {viewingImages.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => cycleViewImage(-1)}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/65 text-slate-200 hover:bg-black"
+                        aria-label="Previous image"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => cycleViewImage(1)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/65 text-slate-200 hover:bg-black"
+                        aria-label="Next image"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </>
+                  )}
                 </div>
+
+                {viewingImages.length > 1 && (
+                  <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">
+                    {viewingImages.map((image, index) => (
+                      <button
+                        key={`${image}-${index}`}
+                        type="button"
+                        onClick={() => setActiveViewImageIndex(index)}
+                        className={`h-14 w-14 flex-shrink-0 overflow-hidden rounded-md border ${
+                          index === activeViewImageIndex ? 'border-slate-800 ring-1 ring-slate-700' : 'border-slate-300'
+                        }`}
+                        aria-label={`Preview image ${index + 1}`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={image} alt={`${viewingProduct.name} ${index + 1}`} className="h-full w-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {viewingImages.length > 1 && (
+                  <p className="mt-1 text-[11px] text-slate-500">Use arrows or thumbnails to view one image at a time.</p>
+                )}
               </div>
 
               <div className="pt-1 pr-1">
-                <h3 className="text-[46px] font-semibold text-[#111827] leading-[1.05] tracking-[-0.02em]">{viewingProduct.name}</h3>
-                <p className="mt-2 text-[30px] text-[#64748B] leading-none">{viewingProduct.brand}</p>
+                <h3 className="text-md font-semibold text-[#111827] leading-[1.1] tracking-[-0.02em]">{viewingProduct.name}</h3>
+                <p className="mt-2 text-sm text-[#64748B] leading-none">{viewingProduct.brand}</p>
 
-                <p className="mt-7 text-[54px] font-bold text-[#111827] leading-none">${viewingProduct.price.toFixed(2)}</p>
+                <p className="mt-5 text-md font-bold text-[#111827] leading-none">${viewingProduct.price.toFixed(2)}</p>
 
-                <div className="mt-9 text-[34px] leading-tight text-[#475569]">
+                <div className="mt-6 text-md leading-tight text-[#475569]">
                   <p>
                     <span className="font-semibold text-[#334155]">Category:</span> {viewingProduct.category}
                   </p>
@@ -313,47 +638,57 @@ export default function ProductsPage() {
                     <span className="font-semibold text-[#334155]">Sub-Category:</span> {viewingProduct.subCategory || 'N/A'}
                   </p>
                 </div>
-
-                <div className="mt-8">
-                  <p className="text-[34px] font-semibold text-[#334155]">Colors</p>
-                  <div className="mt-4 flex flex-wrap gap-3">
+                
+                <div className="mt-6">
+                  <p className="text-sm font-semibold text-[#334155]">Colors</p>
+                  <div className="mt-3 flex flex-wrap gap-2.5">
                     {viewingProduct.colors.map((color) => {
                       const match = COLOR_OPTIONS.find((option) => option.label === color);
                       return (
                         <span
                           key={color}
                           title={color}
-                          className="h-14 w-14 rounded-full border border-slate-400"
+                          className="h-6 w-6 rounded-full border border-slate-400"
                           style={{ backgroundColor: match?.hex ?? '#E2E8F0' }}
                         />
                       );
                     })}
                   </div>
                 </div>
-
-                <div className="mt-8">
-                  <p className="text-[34px] font-semibold text-[#334155]">Sizes</p>
-                  <div className="mt-3 flex flex-wrap gap-3">
+                
+                <div className="mt-6">
+                  <p className="text-sm font-semibold text-[#334155]">Sizes</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
                     {viewingProduct.sizes.map((size) => (
                       <span
                         key={size}
-                        className="inline-flex h-[54px] min-w-[58px] items-center justify-center rounded-lg border border-[#CBD5E1] bg-[#E2E8F0] px-3 text-[26px] font-medium text-[#475569]"
+                        className="inline-flex h-[24px] min-w-[28px] items-center justify-center rounded-lg border border-[#CBD5E1] bg-[#E2E8F0] px-2.5 text-xs font-medium text-[#475569]"
                       >
                         {size}
                       </span>
                     ))}
                   </div>
                 </div>
-
-                <div className="mt-8">
-                  <span className="inline-flex rounded-full bg-emerald-200 px-4 py-2 text-[27px] font-semibold text-emerald-700">
+                <div className="mt-6">
+                  <p className="text-sm font-semibold text-[#334155]">Description</p>
+                  {viewingProduct.description?.trim() ? (
+                    <div
+                      className="mt-2 text-sm leading-6 text-slate-700 [&_h1]:mt-3 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:mt-2 [&_h2]:text-lg [&_h2]:font-semibold [&_p]:mt-2 [&_strong]:font-bold [&_em]:italic [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:mt-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mt-1"
+                      dangerouslySetInnerHTML={{ __html: viewingProduct.description }}
+                    />
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-500">No description available.</p>
+                  )}
+                </div>
+                <div className="mt-6">
+                  <span className="inline-flex rounded-full bg-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700">
                     {viewingProduct.stock > 0 ? `Well Stocked (${viewingProduct.stock})` : 'Out of Stock'}
                   </span>
                 </div>
 
-                <p className="mt-8 text-[34px] text-[#475569]">
-                  <span className="font-semibold text-[#334155]">Style:</span> {viewingProduct.dressType || 'N/A'}
-                </p>
+                
+
+                
               </div>
             </div>
           </div>
@@ -385,10 +720,13 @@ export default function ProductsPage() {
               </button>
               <button
                 type="button"
-                onClick={confirmDeleteProduct}
-                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+                onClick={() => {
+                  void confirmDeleteProduct();
+                }}
+                disabled={isDeleting}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Delete
+                {isDeleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

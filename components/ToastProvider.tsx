@@ -8,6 +8,7 @@ type ToastItem = {
   id: number;
   message: string;
   type: ToastType;
+  isShown: boolean;
 };
 
 type ToastContextValue = {
@@ -19,10 +20,24 @@ type ToastContextValue = {
 const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 
 const toastStyles: Record<ToastType, string> = {
-  success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  error: 'border-rose-200 bg-rose-50 text-rose-800',
-  info: 'border-slate-300 bg-slate-100 text-slate-800',
+  success: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+  error: 'border-rose-200 bg-rose-50 text-rose-900',
+  info: 'border-sky-200 bg-sky-50 text-sky-900',
 };
+
+const toastEmojis: Record<ToastType, string> = {
+  success: '🎉',
+  error: '🚫',
+  info: '💡',
+};
+
+const toastTitles: Record<ToastType, string> = {
+  success: 'Success',
+  error: 'Error',
+  info: 'Info',
+};
+
+const failedPattern = /fail|failed/i;
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -30,11 +45,23 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const pushToast = useCallback((message: string, type: ToastType) => {
     const id = Date.now() + Math.floor(Math.random() * 1000);
 
-    setToasts((current) => [...current, { id, message, type }]);
+    setToasts((current) => [...current, { id, message, type, isShown: false }]);
+
+    window.setTimeout(() => {
+      setToasts((current) =>
+        current.map((toast) => (toast.id === id ? { ...toast, isShown: true } : toast))
+      );
+    }, 20);
+
+    window.setTimeout(() => {
+      setToasts((current) =>
+        current.map((toast) => (toast.id === id ? { ...toast, isShown: false } : toast))
+      );
+    }, 2850);
 
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
-    }, 3200);
+    }, 3250);
   }, []);
 
   const value = useMemo(
@@ -49,13 +76,21 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed right-4 top-4 z-[100] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-3">
+      <div className="pointer-events-none fixed right-4 top-4 z-[100] flex w-[calc(100%-2rem)] max-w-[17rem] flex-col gap-3">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto rounded-2xl border px-4 py-3 shadow-lg backdrop-blur-sm ${toastStyles[toast.type]}`}
+            className={`pointer-events-auto rounded-2xl border px-3 py-3.5 shadow-lg backdrop-blur-sm min-h-[86px] transition-all duration-300 ease-out ${toastStyles[toast.type]} ${
+              toast.isShown ? 'translate-x-0 opacity-100 scale-100' : 'translate-x-8 opacity-0 scale-95'
+            }`}
           >
-            <p className="text-sm font-semibold">{toast.message}</p>
+            <div className="min-w-0">
+              <p className="text-[12px] font-bold uppercase tracking-wide">
+                {(toast.type === 'error' && failedPattern.test(toast.message) ? '🛑' : toastEmojis[toast.type])}{' '}
+                {toast.type === 'error' && failedPattern.test(toast.message) ? 'Failed' : toastTitles[toast.type]}
+              </p>
+              <p className="mt-1 text-sm font-medium leading-5 break-words">{toast.message}</p>
+            </div>
           </div>
         ))}
       </div>

@@ -12,6 +12,7 @@ import {
   Settings,
   TrendingUp,
   Tag,
+  Boxes,
   LogOut,
   ChevronRight,
   ChevronsLeft,
@@ -21,6 +22,7 @@ import {
 const navItems = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Products', href: '/dashboard/products', icon: ShoppingBag },
+  { label: 'Stocks', href: '/dashboard/stocks', icon: Boxes },
   { label: 'Orders', href: '/dashboard/orders', icon: ClipboardList },
   { label: 'Users', href: '/dashboard/users', icon: Users },
   { label: 'Analytics', href: '/dashboard/analytics', icon: TrendingUp },
@@ -43,7 +45,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className={`bg-white shadow-lg flex flex-col h-full transition-all duration-300 ${isOpen ? 'w-64' : 'w-20'}`}>
+    <aside className={`bg-white shadow-lg flex flex-col h-full transition-all duration-300 ${isOpen ? 'w-52' : 'w-14'}`}>
       {/* Logo */}
       <div className={`border-b border-slate-800 bg-black h-16 ${isOpen ? 'px-4' : 'px-3'}`}>
         <div className={`h-full flex items-center ${isOpen ? 'gap-2 justify-between' : 'justify-center'}`}>
