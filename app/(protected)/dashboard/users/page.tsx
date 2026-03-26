@@ -86,7 +86,7 @@ export default function UsersPage() {
       }));
 
     const staffList = users
-      .filter((user) => user.role === 'admin')
+      .filter((user) => user.role !== 'user')
       .map((user, index): StaffRow => ({
         id: String(user._id || user.id || ''),
         fullName: `${user.firstName} ${user.lastName}`,
@@ -208,8 +208,8 @@ export default function UsersPage() {
       {/* Staff Section */}
       <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-800">Staff</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage admin and staff accounts.</p>
+          <h1 className="text-2xl font-bold text-slate-800">Other Users</h1>
+          <p className="text-sm text-slate-500 mt-1">Manage admin, staff, and other user roles.</p>
         </div>
 
         <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-slate-600">
@@ -239,7 +239,8 @@ export default function UsersPage() {
               {staff.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
-                    No staff members found.
+                    No other users found.
+
                   </td>
                 </tr>
               ) : (
