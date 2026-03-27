@@ -14,6 +14,7 @@ import {
   Tag,
   Boxes,
   BadgeDollarSign,
+  MessageSquare,
   LogOut,
   ChevronRight,
   ChevronsLeft,
@@ -29,6 +30,7 @@ const navItems = [
   { label: 'Users', href: '/dashboard/users', icon: Users },
   { label: 'Analytics', href: '/dashboard/analytics', icon: TrendingUp },
   { label: 'Promotions', href: '/dashboard/promotions', icon: Tag },
+  { label: 'Reviews', href: '/dashboard/reviews', icon: MessageSquare },
   { label: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
