@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Check, Search } from 'lucide-react';
 import { useToast } from '@/components/ToastProvider';
 import { apiGet, apiPut } from '@/lib/api';
 import { COLOR_OPTIONS, type Product } from '@/types/product';
@@ -264,6 +264,110 @@ export default function StocksPage() {
     }));
   };
 
+  const addSizeToProduct = (
+    product: Product,
+    rawSize: string,
+    options?: { silent?: boolean },
+  ): boolean => {
+    const productKey = String(product.id);
+    const size = String(rawSize || '').trim();
+
+    if (!size) {
+      if (!options?.silent) {
+        toast.error('Enter a size to add.');
+      }
+      return false;
+    }
+
+    if (product.sizes.includes(size)) {
+      if (!options?.silent) {
+        toast.info(`Size ${size} already exists for ${product.name}.`);
+      }
+      return false;
+    }
+
+    setProducts((prev) =>
+      prev.map((item) => {
+        if (String(item.id) !== productKey) return item;
+        return {
+          ...item,
+          sizes: [...item.sizes, size],
+        };
+      }),
+    );
+
+    setDrafts((prev) => {
+      const current = prev[productKey] ?? {};
+      const next = { ...current };
+
+      product.colors.forEach((color) => {
+        next[color] = {
+          ...(next[color] ?? {}),
+          [size]: next[color]?.[size] ?? 0,
+        };
+      });
+
+      return {
+        ...prev,
+        [productKey]: next,
+      };
+    });
+
+    if (!options?.silent) {
+      toast.success(`Added size ${size} for ${product.name}.`);
+    }
+
+    return true;
+  };
+
+  const addColorToProduct = (product: Product, rawColor: string): boolean => {
+    const productKey = String(product.id);
+    const color = String(rawColor || '').trim();
+
+    if (!color) {
+      toast.error('Enter a color to add.');
+      return false;
+    }
+
+    const colorAlreadyExists = product.colors.some(
+      (item) => item.toLowerCase() === color.toLowerCase(),
+    );
+    if (colorAlreadyExists) {
+      toast.info(`Color ${color} already exists for ${product.name}.`);
+      return false;
+    }
+
+    setProducts((prev) =>
+      prev.map((item) => {
+        if (String(item.id) !== productKey) return item;
+        return {
+          ...item,
+          colors: [...item.colors, color],
+        };
+      }),
+    );
+
+    setDrafts((prev) => {
+      const current = prev[productKey] ?? {};
+      const nextColorDraft: Record<string, number> = {};
+
+      product.sizes.forEach((size) => {
+        nextColorDraft[size] = 0;
+      });
+
+      return {
+        ...prev,
+        [productKey]: {
+          ...current,
+          [color]: nextColorDraft,
+        },
+      };
+    });
+
+    toast.success(`Added color ${color} for ${product.name}.`);
+    return true;
+  };
+
   const getProductTotal = (product: Product) => {
     const productKey = String(product.id);
 
@@ -290,9 +394,16 @@ export default function StocksPage() {
 
     setSavingProductId(productKey);
     try {
-      const response = await apiPut<{ productId: string; variantStock: Product['variantStock']; stock: number }, { variantStock: Product['variantStock'] }>(
+      const response = await apiPut<
+        { productId: string; variantStock: Product['variantStock']; stock: number; colors: string[]; sizes: string[] },
+        { variantStock: Product['variantStock']; colors: string[]; sizes: string[] }
+      >(
         `/admin/products/${productKey}/stock`,
-        { variantStock },
+        {
+          variantStock,
+          colors: product.colors,
+          sizes: product.sizes,
+        },
       );
 
       setProducts((prev) =>
@@ -300,6 +411,8 @@ export default function StocksPage() {
           String(item.id) === productKey
             ? {
                 ...item,
+                colors: response.colors,
+                sizes: response.sizes,
                 variantStock: response.variantStock,
                 stock: response.stock,
               }
@@ -457,21 +570,22 @@ export default function StocksPage() {
                           </td>
 
                           {sizeColumns.map((size) => {
-                            const value = product.sizes.includes(size) ? getDraftValue(productKey, color, size) : null;
+                            const value = getDraftValue(productKey, color, size);
 
                             return (
                               <td key={`${productKey}-${color}-${size}`} className="px-3 py-3">
-                                {value === null ? (
-                                  <div className="h-9 rounded-md bg-slate-50 border border-slate-100" />
-                                ) : (
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={value}
-                                    onChange={(e) => setDraftValue(productKey, color, size, Number(e.target.value))}
-                                    className={`w-full h-9 rounded-md border text-center text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-300 ${getStockToneClasses(value)}`}
-                                  />
-                                )}
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={value}
+                                  onChange={(e) => {
+                                    if (!product.sizes.includes(size)) {
+                                      addSizeToProduct(product, size, { silent: true });
+                                    }
+                                    setDraftValue(productKey, color, size, Number(e.target.value));
+                                  }}
+                                  className={`w-full h-9 rounded-md border text-center text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-slate-300 ${getStockToneClasses(value)}`}
+                                />
                               </td>
                             );
                           })}
@@ -499,6 +613,44 @@ export default function StocksPage() {
                               >
                                 Cancel
                               </button>
+
+                              <div className="mt-3 border-t border-slate-200 pt-3 space-y-2 text-left">
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                  Add Colors
+                                </div>
+
+                                <div className="grid grid-cols-5 gap-2 justify-items-start">
+                                  {COLOR_OPTIONS.map((option) => {
+                                    const isAdded = product.colors.some(
+                                      (item) => item.toLowerCase() === option.label.toLowerCase(),
+                                    );
+
+                                    return (
+                                      <button
+                                        key={`${productKey}-${option.label}`}
+                                        type="button"
+                                        onClick={() => {
+                                          if (isAdded) return;
+                                          addColorToProduct(product, option.label);
+                                        }}
+                                        disabled={savingProductId === productKey}
+                                        title={option.label}
+                                        aria-label={`Add color ${option.label}`}
+                                        className={`relative h-8 w-8 rounded-full border-2 transition-all ${
+                                          isAdded
+                                            ? 'border-slate-900 ring-2 ring-slate-300'
+                                            : 'border-slate-300 hover:scale-105 hover:border-slate-500'
+                                        } disabled:opacity-60 disabled:cursor-not-allowed`}
+                                        style={{ backgroundColor: option.hex }}
+                                      >
+                                        {isAdded && (
+                                          <Check size={14} className="mx-auto text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]" />
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
                             </td>
                           )}
                         </tr>
