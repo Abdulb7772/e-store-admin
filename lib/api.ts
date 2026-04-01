@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://e-store-backend-oqye.onrender.com/api';
 
 type ApiResponse<T> = {
   success: boolean;
