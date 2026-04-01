@@ -62,6 +62,8 @@ function validate(values: SignupValues): SignupErrors {
   return errors;
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://e-store-backend-oqye.onrender.com/api';
+
 export default function SignupPage() {
   const router = useRouter();
   const { login } = useAuth();
@@ -89,7 +91,7 @@ export default function SignupPage() {
     try {
       setIsSubmitting(true);
 
-      const response = await fetch('https://e-store-backend-oqye.onrender.com/api/auth/signup', {
+      const response = await fetch(`${API_BASE_URL}/auth/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

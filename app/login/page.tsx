@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ToastProvider';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://e-store-backend-oqye.onrender.com/api';
+
 const LoginSchema = Yup.object().shape({
   email: Yup.string()
     .email('Please enter a valid email address')
@@ -25,7 +27,7 @@ export default function LoginPage() {
     { setSubmitting, setErrors }: any
   ) => {
     try {
-      const response = await fetch('https://e-store-backend-oqye.onrender.com/api/auth/signin', {
+      const response = await fetch(`${API_BASE_URL}/auth/signin`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
