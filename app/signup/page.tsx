@@ -112,6 +112,8 @@ export default function SignupPage() {
           username: data.data.username,
           firstName: data.data.firstName,
           lastName: data.data.lastName,
+          phone: data.data.phone || values.phoneNumber,
+          address: data.data.address || '',
         };
 
         login(userData, data.data.token);

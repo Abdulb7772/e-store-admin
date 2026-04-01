@@ -44,6 +44,8 @@ export default function LoginPage() {
           username: data.data.username,
           firstName: data.data.firstName,
           lastName: data.data.lastName,
+          phone: data.data.phone || '',
+          address: data.data.address || '',
         };
         login(userData, data.data.token);
         toast.success('Signed in successfully.');
