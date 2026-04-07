@@ -28,67 +28,97 @@ type PaginationData<T> = {
   };
 };
 
-const ITEMS_PER_PAGE = 10;
-
 export default function ReviewsPage() {
   const toast = useToast();
-  const [reviews, setReviews] = useState<ReviewRecord[]>([]);
-  const [deletedReviews, setDeletedReviews] = useState<ReviewRecord[]>([]);
+  
+  // Product reviews state
+  const [productReviews, setProductReviews] = useState<ReviewRecord[]>([]);
   const [productPage, setProductPage] = useState(1);
-  const [websitePage, setWebsitePage] = useState(1);
-  const [deletedPage, setDeletedPage] = useState(1);
-  const [productMeta, setProductMeta] = useState({ total: 0, totalPages: 0 });
-  const [websiteMeta, setWebsiteMeta] = useState({ total: 0, totalPages: 0 });
-  const [deletedMeta, setDeletedMeta] = useState({ total: 0, totalPages: 0 });
+  const [productItemsPerPage, setProductItemsPerPage] = useState(10);
+  const [productPagination, setProductPagination] = useState({ total: 0, totalPages: 1 });
+  const [productLoading, setProductLoading] = useState(false);
 
+  // Website reviews state
+  const [websiteReviews, setWebsiteReviews] = useState<ReviewRecord[]>([]);
+  const [websitePage, setWebsitePage] = useState(1);
+  const [websiteItemsPerPage, setWebsiteItemsPerPage] = useState(10);
+  const [websitePagination, setWebsitePagination] = useState({ total: 0, totalPages: 1 });
+  const [websiteLoading, setWebsiteLoading] = useState(false);
+
+  // Deleted reviews state
+  const [deletedReviews, setDeletedReviews] = useState<ReviewRecord[]>([]);
+  const [deletedPage, setDeletedPage] = useState(1);
+  const [deletedItemsPerPage, setDeletedItemsPerPage] = useState(10);
+  const [deletedPagination, setDeletedPagination] = useState({ total: 0, totalPages: 1 });
+  const [deletedLoading, setDeletedLoading] = useState(false);
+
+  // Load product reviews
   useEffect(() => {
     let isMounted = true;
 
-    const loadReviews = async () => {
+    const loadProductReviews = async () => {
       try {
-        // Load product reviews
-        const productData = await apiGet<PaginationData<ReviewRecord>>('/reviews?type=product&limit=' + ITEMS_PER_PAGE + '&page=' + productPage);
+        setProductLoading(true);
+        const params = new URLSearchParams({
+          type: 'product',
+          limit: String(productItemsPerPage),
+          page: String(productPage),
+        });
+        const response = await apiGet<PaginationData<ReviewRecord>>(`/reviews?${params}`);
         if (isMounted) {
-          const filtered = productData.data.filter(r => !r.deletedAt);
-          setReviews(filtered);
-          setProductMeta({
-            total: productData.pagination.total,
-            totalPages: productData.pagination.totalPages,
+          setProductReviews(response.data);
+          setProductPagination({
+            total: response.pagination.total,
+            totalPages: response.pagination.totalPages,
           });
         }
-      } catch {
+      } catch (error) {
         if (isMounted) {
-          setReviews([]);
+          console.error('Failed to load product reviews:', error);
           toast.error('Failed to load product reviews.');
+        }
+      } finally {
+        if (isMounted) {
+          setProductLoading(false);
         }
       }
     };
 
-    void loadReviews();
+    void loadProductReviews();
 
     return () => {
       isMounted = false;
     };
-  }, [productPage]);
+  }, [productPage, productItemsPerPage]);
 
+  // Load website reviews
   useEffect(() => {
     let isMounted = true;
 
     const loadWebsiteReviews = async () => {
       try {
-        const websiteData = await apiGet<PaginationData<ReviewRecord>>('/reviews?type=website&limit=' + ITEMS_PER_PAGE + '&page=' + websitePage);
+        setWebsiteLoading(true);
+        const params = new URLSearchParams({
+          type: 'website',
+          limit: String(websiteItemsPerPage),
+          page: String(websitePage),
+        });
+        const response = await apiGet<PaginationData<ReviewRecord>>(`/reviews?${params}`);
         if (isMounted) {
-          const filtered = websiteData.data.filter(r => !r.deletedAt);
-          setDeletedReviews(filtered);
-          setWebsiteMeta({
-            total: websiteData.pagination.total,
-            totalPages: websiteData.pagination.totalPages,
+          setWebsiteReviews(response.data);
+          setWebsitePagination({
+            total: response.pagination.total,
+            totalPages: response.pagination.totalPages,
           });
         }
-      } catch {
+      } catch (error) {
         if (isMounted) {
-          setDeletedReviews([]);
+          console.error('Failed to load website reviews:', error);
           toast.error('Failed to load website reviews.');
+        }
+      } finally {
+        if (isMounted) {
+          setWebsiteLoading(false);
         }
       }
     };
@@ -98,25 +128,35 @@ export default function ReviewsPage() {
     return () => {
       isMounted = false;
     };
-  }, [websitePage]);
+  }, [websitePage, websiteItemsPerPage]);
 
+  // Load deleted reviews
   useEffect(() => {
     let isMounted = true;
 
     const loadDeletedReviews = async () => {
       try {
-        const deletedData = await apiGet<PaginationData<ReviewRecord>>('/reviews/deleted?limit=' + ITEMS_PER_PAGE + '&page=' + deletedPage);
+        setDeletedLoading(true);
+        const params = new URLSearchParams({
+          limit: String(deletedItemsPerPage),
+          page: String(deletedPage),
+        });
+        const response = await apiGet<PaginationData<ReviewRecord>>(`/reviews/deleted?${params}`);
         if (isMounted) {
-          setDeletedReviews(deletedData.data);
-          setDeletedMeta({
-            total: deletedData.pagination.total,
-            totalPages: deletedData.pagination.totalPages,
+          setDeletedReviews(response.data);
+          setDeletedPagination({
+            total: response.pagination.total,
+            totalPages: response.pagination.totalPages,
           });
         }
-      } catch {
+      } catch (error) {
         if (isMounted) {
-          setDeletedReviews([]);
+          console.error('Failed to load deleted reviews:', error);
           toast.error('Failed to load deleted reviews.');
+        }
+      } finally {
+        if (isMounted) {
+          setDeletedLoading(false);
         }
       }
     };
@@ -126,32 +166,23 @@ export default function ReviewsPage() {
     return () => {
       isMounted = false;
     };
-  }, [deletedPage]);
-
-  const allReviews = useMemo(() => [...reviews, ...deletedReviews], [reviews, deletedReviews]);
+  }, [deletedPage, deletedItemsPerPage]);
 
   const averageRating = useMemo(() => {
-    if (reviews.length === 0) return 0;
-    const total = reviews.reduce((sum, item) => sum + item.rating, 0);
-    return Math.round((total / reviews.length) * 10) / 10;
-  }, [reviews]);
-
-  const productReviews = useMemo(
-    () => reviews.filter((review) => String(review.productName || '').trim().length > 0),
-    [reviews],
-  );
-
-  const websiteReviews = useMemo(
-    () => reviews.filter((review) => String(review.productName || '').trim().length === 0),
-    [reviews],
-  );
+    const allActiveReviews = [...productReviews, ...websiteReviews];
+    if (allActiveReviews.length === 0) return 0;
+    const total = allActiveReviews.reduce((sum, item) => sum + item.rating, 0);
+    return Math.round((total / allActiveReviews.length) * 10) / 10;
+  }, [productReviews, websiteReviews]);
 
   const handleDelete = async (id: string) => {
     try {
       await apiDelete<{ id: string }>(`/reviews/${id}`);
-      setReviews((prev) => prev.filter((item) => item.id !== id));
+      setProductReviews((prev) => prev.filter((item) => item.id !== id));
+      setWebsiteReviews((prev) => prev.filter((item) => item.id !== id));
       toast.success('Review deleted.');
-    } catch {
+    } catch (error) {
+      console.error('Failed to delete review:', error);
       toast.error('Failed to delete review.');
     }
   };
@@ -161,25 +192,36 @@ export default function ReviewsPage() {
       await apiPatch<ReviewRecord, {}>(`/reviews/${id}/restore`, {});
       setDeletedReviews((prev) => prev.filter((item) => item.id !== id));
       toast.success('Review restored.');
-    } catch {
+    } catch (error) {
+      console.error('Failed to restore review:', error);
       toast.error('Failed to restore review.');
     }
   };
 
-  const PaginationControls = ({ page, totalPages, onPageChange }: { page: number; totalPages: number; onPageChange: (p: number) => void }) => (
+  const PaginationControls = ({ 
+    page, 
+    totalPages, 
+    onPageChange,
+    isLoading 
+  }: { 
+    page: number; 
+    totalPages: number; 
+    onPageChange: (p: number) => void;
+    isLoading?: boolean;
+  }) => (
     <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3">
       <p className="text-xs text-slate-600">Page {page} of {totalPages}</p>
       <div className="flex gap-2">
         <button
           onClick={() => onPageChange(page - 1)}
-          disabled={page === 1}
+          disabled={page === 1 || isLoading}
           className="rounded border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Previous
         </button>
         <button
           onClick={() => onPageChange(page + 1)}
-          disabled={page === totalPages}
+          disabled={page === totalPages || isLoading}
           className="rounded border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Next
@@ -200,6 +242,8 @@ export default function ReviewsPage() {
     </div>
   );
 
+  const totalActiveReviews = productPagination.total + websitePagination.total;
+
   return (
     <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -212,7 +256,7 @@ export default function ReviewsPage() {
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Active Reviews</p>
-          <p className="mt-2 text-2xl font-bold text-slate-800">{productMeta.total + websiteMeta.total}</p>
+          <p className="mt-2 text-2xl font-bold text-slate-800">{totalActiveReviews}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Average Rating</p>
@@ -220,142 +264,226 @@ export default function ReviewsPage() {
         </div>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Deleted Reviews</p>
-          <p className="mt-2 text-2xl font-bold text-slate-800">{deletedMeta.total}</p>
+          <p className="mt-2 text-2xl font-bold text-slate-800">{deletedPagination.total}</p>
         </div>
       </div>
 
       <div className="space-y-6">
+        {/* Product Reviews Section */}
         <section className="rounded-xl border border-slate-200">
-          <div className="border-b border-slate-200 px-4 py-3">
+          <div className="border-b border-slate-200 px-4 py-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-800">Product Reviews</h2>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Per Page:</label>
+              <select
+                value={productItemsPerPage}
+                onChange={(e) => {
+                  setProductItemsPerPage(Number(e.target.value));
+                  setProductPage(1);
+                }}
+                className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-400"
+              >
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="20">20</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+              </select>
+            </div>
           </div>
-          {productReviews.length === 0 ? (
+          {productLoading ? (
+            <p className="px-4 py-6 text-sm text-slate-500">Loading product reviews...</p>
+          ) : productReviews.length === 0 ? (
             <p className="px-4 py-6 text-sm text-slate-500">No product reviews available.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th scope="col" className="px-4 py-3">Customer</th>
-                    <th scope="col" className="px-4 py-3">Product</th>
-                    <th scope="col" className="px-4 py-3">Rating</th>
-                    <th scope="col" className="px-4 py-3">Comment</th>
-                    <th scope="col" className="px-4 py-3">Date</th>
-                    <th scope="col" className="px-4 py-3">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {productReviews.map((review) => (
-                    <tr key={review.id}>
-                      <td className="px-4 py-3 text-slate-700">{review.customerName}</td>
-                      <td className="px-4 py-3 text-slate-700">{review.productName || '-'}</td>
-                      <td className="px-4 py-3"><StarRow rating={review.rating} /></td>
-                      <td className="px-4 py-3 text-slate-600 max-w-xs truncate">{review.comment}</td>
-                      <td className="px-4 py-3 text-slate-600">{new Date(review.createdAt).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(review.id)}
-                          className="rounded-lg border border-red-200 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
-                        >
-                          Delete
-                        </button>
-                      </td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th scope="col" className="px-4 py-3">Customer</th>
+                      <th scope="col" className="px-4 py-3">Product</th>
+                      <th scope="col" className="px-4 py-3">Rating</th>
+                      <th scope="col" className="px-4 py-3">Comment</th>
+                      <th scope="col" className="px-4 py-3">Date</th>
+                      <th scope="col" className="px-4 py-3">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {productReviews.map((review) => (
+                      <tr key={review.id}>
+                        <td className="px-4 py-3 text-slate-700">{review.customerName}</td>
+                        <td className="px-4 py-3 text-slate-700">{review.productName || '-'}</td>
+                        <td className="px-4 py-3"><StarRow rating={review.rating} /></td>
+                        <td className="px-4 py-3 text-slate-600 max-w-xs truncate">{review.comment}</td>
+                        <td className="px-4 py-3 text-slate-600 text-nowrap">{new Date(review.createdAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(review.id)}
+                            className="rounded-lg border border-red-200 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <PaginationControls 
+                page={productPage} 
+                totalPages={productPagination.totalPages} 
+                onPageChange={setProductPage}
+                isLoading={productLoading}
+              />
+            </>
           )}
-          {productMeta.totalPages > 0 && <PaginationControls page={productPage} totalPages={productMeta.totalPages} onPageChange={setProductPage} />}
         </section>
 
+        {/* Website Reviews Section */}
         <section className="rounded-xl border border-slate-200">
-          <div className="border-b border-slate-200 px-4 py-3">
+          <div className="border-b border-slate-200 px-4 py-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-800">Website Reviews</h2>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Per Page:</label>
+              <select
+                value={websiteItemsPerPage}
+                onChange={(e) => {
+                  setWebsiteItemsPerPage(Number(e.target.value));
+                  setWebsitePage(1);
+                }}
+                className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-400"
+              >
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="20">20</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+              </select>
+            </div>
           </div>
-          {websiteReviews.length === 0 ? (
+          {websiteLoading ? (
+            <p className="px-4 py-6 text-sm text-slate-500">Loading website reviews...</p>
+          ) : websiteReviews.length === 0 ? (
             <p className="px-4 py-6 text-sm text-slate-500">No website reviews available.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th scope="col" className="px-4 py-3">Customer</th>
-                    <th scope="col" className="px-4 py-3">Rating</th>
-                    <th scope="col" className="px-4 py-3">Comment</th>
-                    <th scope="col" className="px-4 py-3">Date</th>
-                    <th scope="col" className="px-4 py-3">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {websiteReviews.map((review) => (
-                    <tr key={review.id}>
-                      <td className="px-4 py-3 text-slate-700">{review.customerName}</td>
-                      <td className="px-4 py-3"><StarRow rating={review.rating} /></td>
-                      <td className="px-4 py-3 text-slate-600 max-w-xs truncate">{review.comment}</td>
-                      <td className="px-4 py-3 text-slate-600">{new Date(review.createdAt).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(review.id)}
-                          className="rounded-lg border border-red-200 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
-                        >
-                          Delete
-                        </button>
-                      </td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th scope="col" className="px-4 py-3">Customer</th>
+                      <th scope="col" className="px-4 py-3">Rating</th>
+                      <th scope="col" className="px-4 py-3">Comment</th>
+                      <th scope="col" className="px-4 py-3">Date</th>
+                      <th scope="col" className="px-4 py-3">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {websiteReviews.map((review) => (
+                      <tr key={review.id}>
+                        <td className="px-4 py-3 text-slate-700">{review.customerName}</td>
+                        <td className="px-4 py-3"><StarRow rating={review.rating} /></td>
+                        <td className="px-4 py-3 text-slate-600 max-w-xs truncate">{review.comment}</td>
+                        <td className="px-4 py-3 text-slate-600 text-nowrap">{new Date(review.createdAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(review.id)}
+                            className="rounded-lg border border-red-200 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <PaginationControls 
+                page={websitePage} 
+                totalPages={websitePagination.totalPages} 
+                onPageChange={setWebsitePage}
+                isLoading={websiteLoading}
+              />
+            </>
           )}
-          {websiteMeta.totalPages > 0 && <PaginationControls page={websitePage} totalPages={websiteMeta.totalPages} onPageChange={setWebsitePage} />}
         </section>
 
+        {/* Deleted Reviews Section */}
         <section className="rounded-xl border border-slate-200">
-          <div className="border-b border-slate-200 px-4 py-3">
+          <div className="border-b border-slate-200 px-4 py-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-800">Deleted Reviews</h2>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Per Page:</label>
+              <select
+                value={deletedItemsPerPage}
+                onChange={(e) => {
+                  setDeletedItemsPerPage(Number(e.target.value));
+                  setDeletedPage(1);
+                }}
+                className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-400"
+              >
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="20">20</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+              </select>
+            </div>
           </div>
-          {deletedReviews.length === 0 ? (
+          {deletedLoading ? (
+            <p className="px-4 py-6 text-sm text-slate-500">Loading deleted reviews...</p>
+          ) : deletedReviews.length === 0 ? (
             <p className="px-4 py-6 text-sm text-slate-500">No deleted reviews available.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th scope="col" className="px-4 py-3">Customer</th>
-                    <th scope="col" className="px-4 py-3">Product/Type</th>
-                    <th scope="col" className="px-4 py-3">Rating</th>
-                    <th scope="col" className="px-4 py-3">Comment</th>
-                    <th scope="col" className="px-4 py-3">Deleted Date</th>
-                    <th scope="col" className="px-4 py-3">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {deletedReviews.map((review) => (
-                    <tr key={review.id} className="bg-red-50">
-                      <td className="px-4 py-3 text-slate-700">{review.customerName}</td>
-                      <td className="px-4 py-3 text-slate-700">{review.productName || 'Website'}</td>
-                      <td className="px-4 py-3"><StarRow rating={review.rating} /></td>
-                      <td className="px-4 py-3 text-slate-600 max-w-xs truncate">{review.comment}</td>
-                      <td className="px-4 py-3 text-slate-600">{review.deletedAt ? new Date(review.deletedAt).toLocaleDateString() : '-'}</td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => handleRestore(review.id)}
-                          className="rounded-lg border border-green-200 px-3 py-1 text-xs font-semibold text-green-600 hover:bg-green-50"
-                        >
-                          Restore
-                        </button>
-                      </td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th scope="col" className="px-4 py-3">Customer</th>
+                      <th scope="col" className="px-4 py-3">Product/Type</th>
+                      <th scope="col" className="px-4 py-3">Rating</th>
+                      <th scope="col" className="px-4 py-3">Comment</th>
+                      <th scope="col" className="px-4 py-3">Deleted Date</th>
+                      <th scope="col" className="px-4 py-3">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {deletedReviews.map((review) => (
+                      <tr key={review.id} className="bg-red-50">
+                        <td className="px-4 py-3 text-slate-700">{review.customerName}</td>
+                        <td className="px-4 py-3 text-slate-700">{review.productName || 'Website'}</td>
+                        <td className="px-4 py-3"><StarRow rating={review.rating} /></td>
+                        <td className="px-4 py-3 text-slate-600 max-w-xs truncate">{review.comment}</td>
+                        <td className="px-4 py-3 text-slate-600 text-nowrap">{review.deletedAt ? new Date(review.deletedAt).toLocaleDateString() : '-'}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => handleRestore(review.id)}
+                            className="rounded-lg border border-green-200 px-3 py-1 text-xs font-semibold text-green-600 hover:bg-green-50"
+                          >
+                            Restore
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <PaginationControls 
+                page={deletedPage} 
+                totalPages={deletedPagination.totalPages} 
+                onPageChange={setDeletedPage}
+                isLoading={deletedLoading}
+              />
+            </>
           )}
-          {deletedMeta.totalPages > 0 && <PaginationControls page={deletedPage} totalPages={deletedMeta.totalPages} onPageChange={setDeletedPage} />}
         </section>
       </div>
     </div>
