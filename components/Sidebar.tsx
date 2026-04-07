@@ -26,6 +26,7 @@ const navItems = [
   { label: 'Products', href: '/dashboard/products', icon: ShoppingBag },
   { label: 'Stocks', href: '/dashboard/stocks', icon: Boxes },
   { label: 'Orders', href: '/dashboard/orders', icon: ClipboardList },
+  { label: 'Rejected Orders', href: '/dashboard/rejected-orders', icon: ClipboardList },
   { label: 'Sales', href: '/dashboard/sales', icon: BadgeDollarSign },
   { label: 'Users', href: '/dashboard/users', icon: Users },
   { label: 'Analytics', href: '/dashboard/analytics', icon: TrendingUp },
